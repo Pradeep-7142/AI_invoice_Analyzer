@@ -1,0 +1,25 @@
+INVOICE
+Slack Technologies Limited
+Salesforce Tower, 415 Mission Street, 3rd Floor
+San Francisco, CA 94105
+GSTIN: 27AABCS3456L1Z2
+
+Customer:
+Acme Technologies Inc.
+admin@acme.com
+Bangalore, India
+
+Invoice #: SLACK-INV-2026-8801
+Date of Issue: 2026-08-05
+Payment Due: 2026-08-20
+Currency: INR
+
+ITEMS:
+- Slack Business+ Annual Subscription (30 Users) @ INR 1,200.00 each = INR 36,000.00
+- Huddles & Enterprise Key Management Add-on @ INR 6,000.00 = INR 6,000.00
+
+Subtotal: INR 42,000.00
+Integrated GST (18%): INR 7,560.00
+Total Due: INR 49,560.00
+
+Thank you for choosing Slack!

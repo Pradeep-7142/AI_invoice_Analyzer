@@ -5,7 +5,10 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
   Chip,
+  Grid,
   Paper,
   Skeleton,
   Stack,
@@ -16,10 +19,14 @@ import {
   Typography,
 } from "@mui/material";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import { dashboardApi } from "@/api/dashboardApi";
+import { aiApi } from "@/api/aiApi";
 import { useAuth } from "@/features/auth/AuthContext";
 import type { InvoiceSummary } from "@/types/invoice";
 import type { BudgetStatus } from "@/types/finance";
+import type { QuickInsight } from "@/types/ai";
 
 function formatCurrency(amount: number | null, currency: string) {
   if (amount === null) return "—";
@@ -80,6 +87,7 @@ function AttentionSection({ title, emptyLabel, children, count }: { title: strin
 export function DashboardPage() {
   const { user } = useAuth();
   const actionCenterQuery = useQuery({ queryKey: ["action-center"], queryFn: dashboardApi.actionCenter });
+  const quickInsightsQuery = useQuery({ queryKey: ["ai-quick-insights"], queryFn: aiApi.getQuickInsights });
 
   if (actionCenterQuery.isLoading) {
     return <Skeleton variant="rectangular" height={400} />;
@@ -95,14 +103,60 @@ export function DashboardPage() {
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h4" fontWeight={700}>
-          Welcome back{user ? `, ${user.fullName.split(" ")[0]}` : ""}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Everything below is live — nothing here is a stored notification, so it's never stale.
-        </Typography>
-      </Box>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={2}>
+        <Box>
+          <Typography variant="h4" fontWeight={700}>
+            Welcome back{user ? `, ${user.fullName.split(" ")[0]}` : ""}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Everything below is live — nothing here is a stored notification, so it's never stale.
+          </Typography>
+        </Box>
+
+        <Button
+          component={RouterLink}
+          to="/ai-assistant"
+          variant="contained"
+          startIcon={<AutoAwesomeIcon />}
+          sx={{ alignSelf: { xs: "flex-start", sm: "center" } }}
+        >
+          Open Finance Copilot
+        </Button>
+      </Stack>
+
+      {/* AI Quick Insights Banner */}
+      {quickInsightsQuery.data && quickInsightsQuery.data.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2, backgroundColor: "background.paper", borderColor: "divider" }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+            <AutoAwesomeIcon color="primary" fontSize="small" />
+            <Typography variant="subtitle2" fontWeight={700}>
+              AI Financial Briefing & Alerts
+            </Typography>
+          </Stack>
+          <Grid container spacing={2}>
+            {quickInsightsQuery.data.slice(0, 3).map((insight: QuickInsight, idx: number) => (
+              <Grid item xs={12} md={4} key={idx}>
+                <Card variant="outlined" sx={{ height: "100%" }}>
+                  <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                      <LightbulbOutlinedIcon
+                        fontSize="small"
+                        color={insight.severity === "CRITICAL" ? "error" : insight.severity === "WARNING" ? "warning" : "primary"}
+                      />
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        {insight.title}
+                      </Typography>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {insight.summary}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
+      )}
 
       {totalAttentionItems === 0 && (
         <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>
@@ -131,6 +185,7 @@ export function DashboardPage() {
       <Stack direction="row" spacing={1}>
         <Button component={RouterLink} to="/invoices">View all invoices</Button>
         <Button component={RouterLink} to="/analytics">View analytics</Button>
+        <Button component={RouterLink} to="/ai-assistant" startIcon={<AutoAwesomeIcon />}>Ask AI Copilot</Button>
       </Stack>
     </Stack>
   );

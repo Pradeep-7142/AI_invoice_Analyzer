@@ -6,6 +6,8 @@ import {
   Box,
   Button,
   Chip,
+  IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Skeleton,
@@ -21,10 +23,15 @@ import {
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFileOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
 import { invoicesApi } from "@/api/invoicesApi";
+import { aiApi } from "@/api/aiApi";
 import { apiErrorMessage } from "@/utils/apiErrorMessage";
 import { downloadBlob } from "@/utils/downloadBlob";
-import type { InvoiceStatus } from "@/types/invoice";
+import type { InvoiceStatus, InvoiceSummary } from "@/types/invoice";
+import type { NaturalSearchResponse } from "@/types/ai";
 
 const STATUS_OPTIONS: { value: InvoiceStatus | ""; label: string }[] = [
   { value: "", label: "All statuses" },
@@ -63,11 +70,21 @@ export function InvoicesPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
+  const [naturalQuery, setNaturalQuery] = useState("");
+  const [naturalSearchResult, setNaturalSearchResult] = useState<NaturalSearchResponse | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const invoicesQuery = useQuery({
     queryKey: ["invoices", statusFilter],
     queryFn: () => invoicesApi.list(statusFilter),
+    enabled: !naturalSearchResult,
+  });
+
+  const naturalSearchMutation = useMutation({
+    mutationFn: (query: string) => aiApi.naturalSearch(query),
+    onSuccess: (data) => {
+      setNaturalSearchResult(data);
+    },
   });
 
   const uploadMutation = useMutation({
@@ -79,7 +96,10 @@ export function InvoicesPage() {
     onError: (error) => setUploadError(apiErrorMessage(error)),
   });
 
-  const invoices = invoicesQuery.data?.content ?? [];
+  const invoices: InvoiceSummary[] = naturalSearchResult
+    ? naturalSearchResult.results
+    : invoicesQuery.data?.content ?? [];
+
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
@@ -92,6 +112,20 @@ export function InvoicesPage() {
     }
   };
 
+  const handleNaturalSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!naturalQuery.trim()) {
+      setNaturalSearchResult(null);
+      return;
+    }
+    naturalSearchMutation.mutate(naturalQuery.trim());
+  };
+
+  const clearNaturalSearch = () => {
+    setNaturalQuery("");
+    setNaturalSearchResult(null);
+  };
+
   return (
     <Stack spacing={3}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -100,7 +134,7 @@ export function InvoicesPage() {
             Invoices
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Upload a document to start tracking an invoice.
+            Upload a document to start tracking an invoice or query using natural language search.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
@@ -142,20 +176,71 @@ export function InvoicesPage() {
         </Alert>
       )}
 
-      <TextField
-        select
-        size="small"
-        label="Status"
-        value={statusFilter}
-        onChange={(e) => setStatusFilter(e.target.value as InvoiceStatus | "")}
-        sx={{ maxWidth: 220 }}
-      >
-        {STATUS_OPTIONS.map((opt) => (
-          <MenuItem key={opt.value} value={opt.value}>
-            {opt.label}
-          </MenuItem>
-        ))}
-      </TextField>
+      {/* Search & Filter Bar */}
+      <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="center">
+        <Box component="form" onSubmit={handleNaturalSearchSubmit} sx={{ flexGrow: 1, width: "100%" }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="AI Search: e.g. 'approved cloud invoices over 50000' or 'overdue from AWS'"
+            value={naturalQuery}
+            onChange={(e) => setNaturalQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <AutoAwesomeIcon color="primary" fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  {naturalQuery && (
+                    <IconButton size="small" onClick={clearNaturalSearch}>
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                  <IconButton size="small" type="submit" disabled={naturalSearchMutation.isPending}>
+                    <SearchIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+
+        <TextField
+          select
+          size="small"
+          label="Status"
+          value={statusFilter}
+          onChange={(e) => {
+            setNaturalSearchResult(null);
+            setStatusFilter(e.target.value as InvoiceStatus | "");
+          }}
+          sx={{ minWidth: 200 }}
+        >
+          {STATUS_OPTIONS.map((opt) => (
+            <MenuItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Stack>
+
+      {/* AI Interpretation Chip */}
+      {naturalSearchResult && (
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Chip
+            icon={<AutoAwesomeIcon />}
+            label={naturalSearchResult.criteria.interpretation}
+            color="primary"
+            variant="outlined"
+            onDelete={clearNaturalSearch}
+          />
+          <Typography variant="caption" color="text.secondary">
+            Found {naturalSearchResult.totalMatches} match(es)
+          </Typography>
+        </Stack>
+      )}
 
       <TableContainer component={Paper} variant="outlined">
         <Table>
@@ -170,7 +255,7 @@ export function InvoicesPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {invoicesQuery.isLoading &&
+            {(invoicesQuery.isLoading || naturalSearchMutation.isPending) &&
               [1, 2, 3].map((i) => (
                 <TableRow key={i}>
                   <TableCell colSpan={6}><Skeleton variant="text" /></TableCell>
@@ -195,11 +280,11 @@ export function InvoicesPage() {
               </TableRow>
             ))}
 
-            {!invoicesQuery.isLoading && invoices.length === 0 && (
+            {!invoicesQuery.isLoading && !naturalSearchMutation.isPending && invoices.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                    No invoices yet. Upload your first invoice to start tracking expenses.
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+                    No invoices match your filter criteria.
                   </Typography>
                 </TableCell>
               </TableRow>

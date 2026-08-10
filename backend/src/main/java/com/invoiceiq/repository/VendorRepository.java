@@ -2,6 +2,7 @@ package com.invoiceiq.repository;
 
 import com.invoiceiq.entity.Vendor;
 import com.invoiceiq.entity.VendorStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -11,6 +12,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface VendorRepository extends JpaRepository<Vendor, UUID> {
 
     Optional<Vendor> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
+    List<Vendor> findByOrganizationId(UUID organizationId);
 
     Page<Vendor> findByOrganizationIdAndStatusAndNameContainingIgnoreCase(
         UUID organizationId, VendorStatus status, String nameFragment, Pageable pageable);

@@ -5,26 +5,21 @@ validated, analyzable financial data — with AI-assisted extraction, risk
 scoring, duplicate/anomaly detection, and finance analytics, built as a
 multi-tenant B2B SaaS product.
 
-> **Build status:** Built incrementally, phase by phase, checked in at
-> each milestone. Every phase in the [Roadmap](#roadmap) is complete —
-> this covers the full core financial workflow (auth, invoices, document
-> intelligence, validation/risk, approvals/payments/budgets, analytics/
-> forecasting) plus a live action dashboard and CSV exports. Email
-> notifications, a real LLM provider, natural-language search, and a
-> Finance Copilot were deliberately cut from scope (see
-> [Known limitations](#known-limitations-current-phase)) to keep the
-> build finished and runnable rather than open-ended.
+> **Build status:** All milestones including AI/ML Intelligence features
+> (LLM-powered document extraction with local fallback, Grounded Finance
+> Copilot, Natural Language Search parser, and AI Cost-Saving Engine)
+> are fully implemented and integrated.
 
 ## Technology stack
 
 | Layer | Technology |
 |---|---|
 | Frontend | React 18, TypeScript, Vite, React Router, Material UI, TanStack Query, React Hook Form, Zod, Recharts |
-| Backend | Java 21, Spring Boot 3, Spring Security, Spring Data JPA, JWT, Flyway, springdoc-openapi |
+| Backend | Java 21, Spring Boot 3, Spring Security, Spring Data JPA, JWT, Flyway, springdoc-openapi, Spring RestClient |
 | Database | PostgreSQL 16 |
 | Cache / jobs | Redis 7 |
-| OCR | Apache Tika (MIME sniffing) + Apache PDFBox (text/rendering) + Tesseract CLI (image OCR), behind `OcrService` — degrades to "needs review" if the `tesseract` binary isn't present |
-| AI | Provider-agnostic `AiExtractionService` interface — a deterministic regex/heuristic extractor today (`MockAiExtractionService`); a real LLM-backed implementation can be added behind the same interface without touching the pipeline |
+| OCR | Apache Tika (MIME sniffing) + Apache PDFBox (text/rendering) + Tesseract CLI (image OCR) |
+| AI / ML | LLM extraction pipeline (`LlmExtractionService`), Grounded conversational Finance Copilot (`FinanceCopilotService`), Natural Language Search (`NaturalLanguageSearchService`), Cost-Saving & Optimization engine (`CostSavingEngineService`), with auto-fallback to heuristic engine (`MockAiExtractionService`) |
 | Infra | Docker, Docker Compose |
 
 ## Project structure

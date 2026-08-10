@@ -1,0 +1,30 @@
+TAX INVOICE / BILL OF SUPPLY
+Amazon Web Services India Private Limited
+Block 3, Ground Floor, Manyata Embassy Business Park
+Bangalore, Karnataka 560045, India
+GSTIN: 29AABCA1234F1Z5
+
+Billed To:
+Acme Technologies Inc.
+Level 5, Tech Park, Bangalore, Karnataka - 560103
+GSTIN: 29AAACA9999P1Z8
+
+Invoice Number: INV-AWS-2026-9811
+Invoice Date: 2026-08-01
+Due Date: 2026-08-31
+Currency: INR
+
+Description                                Quantity    Unit Price    Tax Rate    Amount (INR)
+---------------------------------------------------------------------------------------------
+Amazon Elastic Compute Cloud (EC2)         1           45,000.00     18%         45,000.00
+Amazon Relational Database Service (RDS)   1           38,000.00     18%         38,000.00
+Amazon Simple Storage Service (S3)         1           12,000.00     18%         12,000.00
+
+Subtotal: INR 95,000.00
+CGST (9%): INR 8,550.00
+SGST (9%): INR 8,550.00
+Total Tax (18%): INR 17,100.00
+Total Amount Payable: INR 112,100.00
+
+Payment Terms: Net 30 Days
+Remit to: Bank of America, A/C: 998877665544, IFSC: BOFA0BG001

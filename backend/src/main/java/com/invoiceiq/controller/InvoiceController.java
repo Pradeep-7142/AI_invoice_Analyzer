@@ -41,9 +41,18 @@ public class InvoiceController {
     private static final String DECIDE_APPROVALS = "hasAnyAuthority('ORGANIZATION_ADMIN', 'FINANCE_MANAGER')";
 
     private final InvoiceService invoiceService;
+    private final com.invoiceiq.ai.search.NaturalLanguageSearchService naturalLanguageSearchService;
 
-    public InvoiceController(InvoiceService invoiceService) {
+    public InvoiceController(InvoiceService invoiceService, com.invoiceiq.ai.search.NaturalLanguageSearchService naturalLanguageSearchService) {
         this.invoiceService = invoiceService;
+        this.naturalLanguageSearchService = naturalLanguageSearchService;
+    }
+
+    @PostMapping("/natural-search")
+    public com.invoiceiq.dto.AiIntelligenceDto.NaturalSearchResponse naturalSearch(
+        @RequestBody com.invoiceiq.dto.AiIntelligenceDto.NaturalSearchRequest request
+    ) {
+        return naturalLanguageSearchService.search(request);
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -3,6 +3,7 @@ import { AppLayout } from "@/layouts/AppLayout";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { AiAssistantPage } from "@/pages/AiAssistantPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { InvoicesPage } from "@/pages/InvoicesPage";
 import { InvoiceDetailPage } from "@/pages/InvoiceDetailPage";
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: "dashboard", element: <DashboardPage /> },
+          { path: "ai-assistant", element: <AiAssistantPage /> },
           { path: "invoices", element: <InvoicesPage /> },
           { path: "invoices/:invoiceId", element: <InvoiceDetailPage /> },
           { path: "vendors", element: <VendorsPage /> },

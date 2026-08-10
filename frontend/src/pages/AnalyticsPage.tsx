@@ -37,7 +37,13 @@ import {
 import { analyticsApi } from "@/api/analyticsApi";
 import { forecastApi } from "@/api/forecastApi";
 import { budgetsApi } from "@/api/budgetsApi";
+import { aiApi } from "@/api/aiApi";
 import { useAuth } from "@/features/auth/AuthContext";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
+import Chip from "@mui/material/Chip";
+import Button from "@mui/material/Button";
+import { Link as RouterLink } from "react-router-dom";
 
 const CAN_VIEW_ANALYTICS = new Set(["ORGANIZATION_ADMIN", "FINANCE_MANAGER", "ACCOUNTANT", "VIEWER"]);
 const STATUS_COLORS: Record<string, string> = {
@@ -81,6 +87,7 @@ export function AnalyticsPage() {
   const budgetHistoryQuery = useQuery({ queryKey: ["budget-history", months], queryFn: () => budgetsApi.history(Math.min(months, 12)), enabled: canView });
   const cashFlowQuery = useQuery({ queryKey: ["cash-flow"], queryFn: () => forecastApi.cashFlow(8), enabled: canView });
   const projectionQuery = useQuery({ queryKey: ["monthly-projection"], queryFn: () => forecastApi.monthlyProjection(3), enabled: canView });
+  const costSavingsQuery = useQuery({ queryKey: ["ai-cost-savings"], queryFn: aiApi.getCostSavings, enabled: canView });
 
   if (!canView) {
     return (
@@ -129,6 +136,68 @@ export function AnalyticsPage() {
             <StatCard label="Next month projection" value={currency(projectionQuery.data?.averageMonthlySpend)} secondary={`Avg. of last ${projectionQuery.data?.basedOnMonths ?? 3} months`} />
           </Grid>
         </Grid>
+      )}
+
+      {/* AI Cost Optimization & Intelligence */}
+      {costSavingsQuery.data && costSavingsQuery.data.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2.5, backgroundColor: "background.paper", borderColor: "primary.main" }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <AutoAwesomeIcon color="primary" />
+              <Typography variant="h6" fontWeight={700}>
+                AI Cost-Saving & Optimization Insights
+              </Typography>
+            </Stack>
+            <Button
+              component={RouterLink}
+              to="/ai-assistant"
+              size="small"
+              variant="outlined"
+              startIcon={<AutoAwesomeIcon />}
+            >
+              Ask Finance Copilot
+            </Button>
+          </Stack>
+
+          <Grid container spacing={2}>
+            {costSavingsQuery.data.map((rec) => (
+              <Grid item xs={12} md={4} key={rec.id}>
+                <Card variant="outlined" sx={{ height: "100%", display: "flex", flexDirection: "column", p: 1 }}>
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        {rec.title}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={rec.confidence + " IMPACT"}
+                        color={rec.confidence === "HIGH" ? "error" : "warning"}
+                        sx={{ fontSize: "0.65rem", fontWeight: 700 }}
+                      />
+                    </Stack>
+
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                      {rec.evidence}
+                    </Typography>
+
+                    <Alert severity="info" sx={{ py: 0.5, px: 1, fontSize: "0.8rem", mb: 1 }}>
+                      <strong>Action:</strong> {rec.recommendedAction}
+                    </Alert>
+
+                    {rec.estimatedAnnualSaving > 0 && (
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 1 }}>
+                        <SavingsOutlinedIcon fontSize="small" color="success" />
+                        <Typography variant="caption" fontWeight={700} color="success.main">
+                          Est. Annual Savings: ₹{rec.estimatedAnnualSaving.toLocaleString()}
+                        </Typography>
+                      </Stack>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
       )}
 
       <Grid container spacing={2}>

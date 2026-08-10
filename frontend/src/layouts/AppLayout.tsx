@@ -22,6 +22,7 @@ import StorefrontIcon from "@mui/icons-material/StorefrontOutlined";
 import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import InsightsIcon from "@mui/icons-material/InsightsOutlined";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
@@ -31,6 +32,7 @@ const DRAWER_WIDTH = 240;
 
 const NAV_ITEMS = [
   { label: "Dashboard", to: "/dashboard", icon: <DashboardIcon /> },
+  { label: "AI Copilot", to: "/ai-assistant", icon: <AutoAwesomeIcon color="primary" /> },
   { label: "Invoices", to: "/invoices", icon: <ReceiptLongIcon /> },
   { label: "Vendors", to: "/vendors", icon: <StorefrontIcon /> },
   { label: "Payments", to: "/payments", icon: <PaymentsOutlinedIcon /> },
