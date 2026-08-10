@@ -1,0 +1,26 @@
+# Environment
+.env
+.env.local
+
+# Backend (Maven / Java)
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+!backend/.mvn/wrapper/maven-wrapper.jar
+backend/logs/
+
+# Frontend (Node)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Storage volumes (local dev)
+data/storage/

@@ -1,0 +1,3 @@
+invoiceiq:
+  storage:
+    root-path: /tmp/invoiceiq-test-storage
