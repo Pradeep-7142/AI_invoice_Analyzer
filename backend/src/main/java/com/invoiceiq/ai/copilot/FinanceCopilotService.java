@@ -232,6 +232,7 @@ public class FinanceCopilotService {
         String rawResponse = restClient.post()
             .uri(endpoint)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + aiProperties.getApiKey())
+            .header(HttpHeaders.USER_AGENT, "InvoiceIQ/1.0")
             .contentType(MediaType.APPLICATION_JSON)
             .body(requestBody)
             .retrieve()
