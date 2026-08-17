@@ -22,12 +22,11 @@ public class LocalDiskStorageService implements StorageService {
     }
 
     @Override
-    public StoredFile store(UUID organizationId, UUID invoiceId, String originalFilename, byte[] content) {
+    public StoredFile store(UUID invoiceId, String originalFilename, byte[] content) {
         String sanitizedFilename = sanitize(originalFilename);
         LocalDate today = LocalDate.now();
 
         Path directory = rootPath
-            .resolve(organizationId.toString())
             .resolve(String.valueOf(today.getYear()))
             .resolve(String.format("%02d", today.getMonthValue()))
             .resolve(invoiceId.toString());

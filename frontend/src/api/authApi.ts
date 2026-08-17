@@ -2,7 +2,6 @@ import { httpClient } from "@/api/httpClient";
 import type { AuthResponse, CurrentUserResponse } from "@/types/auth";
 
 export interface RegisterPayload {
-  organizationName: string;
   fullName: string;
   email: string;
   password: string;

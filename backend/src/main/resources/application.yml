@@ -26,29 +26,11 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-
   servlet:
     multipart:
       enabled: true
       max-file-size: ${MAX_FILE_SIZE:10MB}
       max-request-size: ${MAX_REQUEST_SIZE:15MB}
-
-  mail:
-    host: ${SMTP_HOST:localhost}
-    port: ${SMTP_PORT:1025}
-    username: ${SMTP_USERNAME:}
-    password: ${SMTP_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: ${SMTP_AUTH:false}
-          starttls:
-            enable: ${SMTP_STARTTLS:false}
 
 server:
   port: ${SERVER_PORT:8080}

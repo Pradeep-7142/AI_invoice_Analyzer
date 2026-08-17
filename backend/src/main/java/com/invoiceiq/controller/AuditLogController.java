@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/audit-logs")
-@PreAuthorize("hasAuthority('ORGANIZATION_ADMIN')")
+@PreAuthorize("hasRole('ADMIN')")
 public class AuditLogController {
 
     private final AuditLogService auditLogService;
@@ -23,6 +23,6 @@ public class AuditLogController {
 
     @GetMapping
     public Page<AuditLogResponse> list(@PageableDefault(size = 25) Pageable pageable) {
-        return auditLogService.listForCurrentOrganization(pageable);
+        return auditLogService.listLogs(pageable);
     }
 }

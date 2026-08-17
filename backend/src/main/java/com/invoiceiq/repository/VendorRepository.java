@@ -11,15 +11,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface VendorRepository extends JpaRepository<Vendor, UUID> {
 
-    Optional<Vendor> findByIdAndOrganizationId(UUID id, UUID organizationId);
+    List<Vendor> findByStatus(VendorStatus status);
 
-    List<Vendor> findByOrganizationId(UUID organizationId);
+    Page<Vendor> findByStatusAndNameContainingIgnoreCase(VendorStatus status, String nameFragment, Pageable pageable);
 
-    Page<Vendor> findByOrganizationIdAndStatusAndNameContainingIgnoreCase(
-        UUID organizationId, VendorStatus status, String nameFragment, Pageable pageable);
+    Page<Vendor> findByStatus(VendorStatus status, Pageable pageable);
 
-    Page<Vendor> findByOrganizationIdAndStatus(UUID organizationId, VendorStatus status, Pageable pageable);
+    Page<Vendor> findByNameContainingIgnoreCase(String nameFragment, Pageable pageable);
 
-    Optional<Vendor> findFirstByOrganizationIdAndStatusAndNameIgnoreCase(
-        UUID organizationId, VendorStatus status, String name);
+    Optional<Vendor> findFirstByStatusAndNameIgnoreCase(VendorStatus status, String name);
+
+    Optional<Vendor> findFirstByNameIgnoreCase(String name);
 }

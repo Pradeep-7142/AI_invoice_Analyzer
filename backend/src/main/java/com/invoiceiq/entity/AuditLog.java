@@ -7,16 +7,18 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.Map;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "audit_logs")
 public class AuditLog extends BaseEntity {
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "organization_id")
-    private Organization organization;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "actor_user_id")
@@ -35,40 +37,11 @@ public class AuditLog extends BaseEntity {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> metadata;
 
-    protected AuditLog() {
-    }
-
-    public AuditLog(Organization organization, UserAccount actorUser, String action,
-                     String entityType, String entityId, Map<String, Object> metadata) {
-        this.organization = organization;
+    public AuditLog(UserAccount actorUser, String action, String entityType, String entityId, Map<String, Object> metadata) {
         this.actorUser = actorUser;
         this.action = action;
         this.entityType = entityType;
         this.entityId = entityId;
         this.metadata = metadata;
-    }
-
-    public Organization getOrganization() {
-        return organization;
-    }
-
-    public UserAccount getActorUser() {
-        return actorUser;
-    }
-
-    public String getAction() {
-        return action;
-    }
-
-    public String getEntityType() {
-        return entityType;
-    }
-
-    public String getEntityId() {
-        return entityId;
-    }
-
-    public Map<String, Object> getMetadata() {
-        return metadata;
     }
 }

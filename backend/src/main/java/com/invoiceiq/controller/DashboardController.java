@@ -1,6 +1,6 @@
 package com.invoiceiq.controller;
 
-import com.invoiceiq.dto.ActionCenterResponse;
+import com.invoiceiq.dto.DashboardSummaryDto;
 import com.invoiceiq.service.DashboardService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,8 +16,8 @@ public class DashboardController {
         this.dashboardService = dashboardService;
     }
 
-    @GetMapping("/action-center")
-    public ActionCenterResponse actionCenter() {
-        return dashboardService.actionCenter();
+    @GetMapping("/summary")
+    public DashboardSummaryDto getSummary() {
+        return dashboardService.getSummary();
     }
 }

@@ -3,8 +3,8 @@ package com.invoiceiq.risk;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.invoiceiq.entity.Invoice;
-import com.invoiceiq.entity.Organization;
 import com.invoiceiq.entity.UserAccount;
+import com.invoiceiq.entity.UserRole;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,8 +13,7 @@ import org.junit.jupiter.api.Test;
 class DuplicateDetectionServiceTest {
 
     private final DuplicateDetectionService service = new DuplicateDetectionService();
-    private final Organization organization = new Organization("Acme", "acme");
-    private final UserAccount submittedBy = new UserAccount("a@b.com", "hash", "A B");
+    private final UserAccount submittedBy = new UserAccount("a@b.com", "hash", "A B", UserRole.ROLE_EMPLOYEE);
 
     @Test
     void exactInvoiceNumberMatchIsFlaggedWithVeryHighProbability() {
@@ -71,7 +70,7 @@ class DuplicateDetectionServiceTest {
     }
 
     private Invoice invoiceWith(String invoiceNumber, String totalAmount, LocalDate invoiceDate) {
-        Invoice invoice = new Invoice(organization, submittedBy);
+        Invoice invoice = new Invoice(submittedBy);
         invoice.setInvoiceNumber(invoiceNumber);
         invoice.setTotalAmount(new BigDecimal(totalAmount));
         invoice.setInvoiceDate(invoiceDate);

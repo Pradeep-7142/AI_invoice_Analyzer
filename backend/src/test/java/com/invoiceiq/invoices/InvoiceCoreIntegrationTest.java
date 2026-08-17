@@ -18,9 +18,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 class InvoiceCoreIntegrationTest extends AbstractIntegrationTest {
 
     @Test
-    void vendorCrudWorksForPrivilegedRolesAndIsReadOnlyForOthers() throws Exception {
-        String adminToken = registerAndGetAccessToken("Vendor Co", "Vic Admin", "vic@vendorco.test", "password123");
-        String viewerToken = addMemberAndGetAccessToken(adminToken, "Val Viewer", "val@vendorco.test", "password123", "VIEWER");
+    void vendorCrudWorksForAdmin() throws Exception {
+        String adminToken = registerAndGetAccessToken("Vic Admin", "vic@vendorco.test", "password123");
 
         MvcResult createResult = mockMvc.perform(post("/api/vendors")
                 .header("Authorization", "Bearer " + adminToken)
@@ -30,16 +29,9 @@ class InvoiceCoreIntegrationTest extends AbstractIntegrationTest {
             .andReturn();
         String vendorId = extract(createResult, "$.id");
 
-        // Viewer can read but not create.
-        mockMvc.perform(get("/api/vendors").header("Authorization", "Bearer " + viewerToken))
+        mockMvc.perform(get("/api/vendors").header("Authorization", "Bearer " + adminToken))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content.length()").value(1));
-
-        mockMvc.perform(post("/api/vendors")
-                .header("Authorization", "Bearer " + viewerToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("name", "Should Not Work"))))
-            .andExpect(status().isForbidden());
+            .andExpect(jsonPath("$.length()").value(1));
 
         mockMvc.perform(put("/api/vendors/" + vendorId)
                 .header("Authorization", "Bearer " + adminToken)
@@ -51,7 +43,7 @@ class InvoiceCoreIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void emptyFileUploadIsRejected() throws Exception {
-        String adminToken = registerAndGetAccessToken("Upload Co", "Uma Admin", "uma@uploadco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Uma Admin", "uma@uploadco.test", "password123");
 
         MockMultipartFile empty = new MockMultipartFile("file", "empty.pdf", "application/pdf", new byte[0]);
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/invoices/upload")
@@ -63,7 +55,7 @@ class InvoiceCoreIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void unsupportedFileTypeIsRejected() throws Exception {
-        String adminToken = registerAndGetAccessToken("Upload Co", "Uma Admin", "uma2@uploadco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Uma Admin", "uma2@uploadco.test", "password123");
 
         MockMultipartFile script = new MockMultipartFile("file", "invoice.exe", "application/octet-stream",
             "MZ-this-is-not-really-an-exe-but-not-a-pdf-either".getBytes());
@@ -75,68 +67,8 @@ class InvoiceCoreIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void viewerCannotUploadInvoices() throws Exception {
-        String adminToken = registerAndGetAccessToken("Upload Co", "Uma Admin", "uma3@uploadco.test", "password123");
-        String viewerToken = addMemberAndGetAccessToken(adminToken, "Val Viewer", "val3@uploadco.test", "password123", "VIEWER");
-
-        MvcResult result = uploadInvoice(viewerToken, "invoice.pdf", minimalPdfBytes());
-        org.assertj.core.api.Assertions.assertThat(result.getResponse().getStatus()).isEqualTo(403);
-    }
-
-    @Test
-    void employeeOnlySeesOwnSubmissionsWhileAccountantSeesAll() throws Exception {
-        String adminToken = registerAndGetAccessToken("Scoped Co", "Ana Admin", "ana@scopedco.test", "password123");
-        String employeeToken = addMemberAndGetAccessToken(adminToken, "Eli Employee", "eli@scopedco.test", "password123", "EMPLOYEE");
-        String accountantToken = addMemberAndGetAccessToken(adminToken, "Amy Accountant", "amy@scopedco.test", "password123", "ACCOUNTANT");
-
-        MvcResult employeeUpload = uploadInvoice(employeeToken, "employee-invoice.pdf", minimalPdfBytes());
-        org.assertj.core.api.Assertions.assertThat(employeeUpload.getResponse().getStatus()).isEqualTo(201);
-        String employeeInvoiceId = extract(employeeUpload, "$.id");
-
-        uploadInvoice(adminToken, "admin-invoice.pdf", minimalPdfBytes());
-
-        mockMvc.perform(get("/api/invoices").header("Authorization", "Bearer " + employeeToken))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content.length()").value(1))
-            .andExpect(jsonPath("$.content[0].id").value(employeeInvoiceId));
-
-        mockMvc.perform(get("/api/invoices").header("Authorization", "Bearer " + accountantToken))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content.length()").value(2));
-
-        // Employee cannot fetch the admin's invoice by ID either.
-        MvcResult adminInvoices = mockMvc.perform(get("/api/invoices").header("Authorization", "Bearer " + adminToken))
-            .andExpect(status().isOk())
-            .andReturn();
-        List<String> ids = com.jayway.jsonpath.JsonPath.read(adminInvoices.getResponse().getContentAsString(), "$.content[*].id");
-        String othersInvoiceId = ids.stream().filter(id -> !id.equals(employeeInvoiceId)).findFirst().orElseThrow();
-
-        mockMvc.perform(get("/api/invoices/" + othersInvoiceId).header("Authorization", "Bearer " + employeeToken))
-            .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void employeeCannotEditVerifyOrArchiveInvoices() throws Exception {
-        String adminToken = registerAndGetAccessToken("Locked Co", "Lea Admin", "lea@lockedco.test", "password123");
-        String employeeToken = addMemberAndGetAccessToken(adminToken, "Eli Employee", "eli2@lockedco.test", "password123", "EMPLOYEE");
-
-        MvcResult upload = uploadInvoice(employeeToken, "invoice.pdf", minimalPdfBytes());
-        String invoiceId = extract(upload, "$.id");
-
-        mockMvc.perform(put("/api/invoices/" + invoiceId)
-                .header("Authorization", "Bearer " + employeeToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("lineItems", List.of()))))
-            .andExpect(status().isForbidden());
-
-        mockMvc.perform(post("/api/invoices/" + invoiceId + "/verify")
-                .header("Authorization", "Bearer " + employeeToken))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void verifyRequiresRequiredFieldsAndEditingAVerifiedInvoiceReopensItForReview() throws Exception {
-        String adminToken = registerAndGetAccessToken("Verify Co", "Vera Admin", "vera@verifyco.test", "password123");
+    void invoiceLifecycleWorkflowOperatesCorrectly() throws Exception {
+        String adminToken = registerAndGetAccessToken("Vera Admin", "vera@verifyco.test", "password123");
 
         MvcResult vendorResult = mockMvc.perform(post("/api/vendors")
                 .header("Authorization", "Bearer " + adminToken)
@@ -204,32 +136,5 @@ class InvoiceCoreIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("lineItems", List.of()))))
             .andExpect(status().isUnprocessableEntity());
-    }
-
-    @Test
-    void tenantIsolationPreventsCrossOrganizationVendorAndInvoiceAccess() throws Exception {
-        String orgAToken = registerAndGetAccessToken("Org A Inc", "Admin A", "admina@orga2.test", "password123");
-        String orgBToken = registerAndGetAccessToken("Org B Inc", "Admin B", "adminb@orgb2.test", "password123");
-
-        MvcResult vendorResult = mockMvc.perform(post("/api/vendors")
-                .header("Authorization", "Bearer " + orgAToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("name", "Org A Vendor"))))
-            .andExpect(status().isCreated())
-            .andReturn();
-        String vendorId = extract(vendorResult, "$.id");
-
-        MvcResult uploadResult = uploadInvoice(orgAToken, "org-a-invoice.pdf", minimalPdfBytes());
-        String invoiceId = extract(uploadResult, "$.id");
-
-        mockMvc.perform(get("/api/vendors/" + vendorId).header("Authorization", "Bearer " + orgBToken))
-            .andExpect(status().isNotFound());
-
-        mockMvc.perform(get("/api/invoices/" + invoiceId).header("Authorization", "Bearer " + orgBToken))
-            .andExpect(status().isNotFound());
-
-        mockMvc.perform(get("/api/invoices").header("Authorization", "Bearer " + orgBToken))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content.length()").value(0));
     }
 }

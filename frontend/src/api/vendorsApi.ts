@@ -1,5 +1,5 @@
 import { httpClient } from "@/api/httpClient";
-import type { Page, Vendor } from "@/types/invoice";
+import type { Vendor } from "@/types/invoice";
 
 export interface VendorPayload {
   name: string;
@@ -13,10 +13,10 @@ export interface VendorPayload {
 }
 
 export const vendorsApi = {
-  list: (search?: string) =>
+  list: (search?: string): Promise<Vendor[]> =>
     httpClient
-      .get<Page<Vendor>>("/api/vendors", { params: { search, size: 100 } })
-      .then((r) => r.data),
+      .get<any>("/api/vendors", { params: { search, size: 100 } })
+      .then((r) => (Array.isArray(r.data) ? r.data : (r.data?.content ?? []))),
 
   get: (id: string) => httpClient.get<Vendor>(`/api/vendors/${id}`).then((r) => r.data),
 

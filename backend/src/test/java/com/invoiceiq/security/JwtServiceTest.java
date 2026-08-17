@@ -3,7 +3,7 @@ package com.invoiceiq.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.invoiceiq.entity.OrgRole;
+import com.invoiceiq.entity.UserRole;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -18,20 +18,19 @@ class JwtServiceTest {
     @Test
     void accessTokenRoundTripsAllClaims() {
         UUID userId = UUID.randomUUID();
-        UUID orgId = UUID.randomUUID();
 
-        String token = jwtService.generateAccessToken(userId, orgId, OrgRole.FINANCE_MANAGER, "user@example.com");
+        String token = jwtService.generateAccessToken(userId, "admin@example.com", "Admin User", UserRole.ROLE_ADMIN);
         AuthenticatedPrincipal principal = jwtService.parseAccessToken(token);
 
         assertThat(principal.userId()).isEqualTo(userId);
-        assertThat(principal.organizationId()).isEqualTo(orgId);
-        assertThat(principal.role()).isEqualTo(OrgRole.FINANCE_MANAGER);
-        assertThat(principal.email()).isEqualTo("user@example.com");
+        assertThat(principal.role()).isEqualTo(UserRole.ROLE_ADMIN);
+        assertThat(principal.email()).isEqualTo("admin@example.com");
+        assertThat(principal.fullName()).isEqualTo("Admin User");
     }
 
     @Test
     void tamperedTokenIsRejected() {
-        String token = jwtService.generateAccessToken(UUID.randomUUID(), UUID.randomUUID(), OrgRole.VIEWER, "a@b.com");
+        String token = jwtService.generateAccessToken(UUID.randomUUID(), "employee@example.com", "Employee User", UserRole.ROLE_EMPLOYEE);
         String tampered = token.substring(0, token.length() - 2) + "xx";
 
         assertThatThrownBy(() -> jwtService.parseAccessToken(tampered))

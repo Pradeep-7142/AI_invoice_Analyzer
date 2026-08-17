@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.invoiceiq.entity.Invoice;
 import com.invoiceiq.entity.InvoiceLineItem;
-import com.invoiceiq.entity.Organization;
 import com.invoiceiq.entity.UserAccount;
+import com.invoiceiq.entity.UserRole;
 import com.invoiceiq.entity.Vendor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,12 +15,11 @@ import org.junit.jupiter.api.Test;
 class InvoiceValidationServiceTest {
 
     private final InvoiceValidationService service = new InvoiceValidationService();
-    private final Organization organization = new Organization("Acme", "acme");
-    private final UserAccount submittedBy = new UserAccount("a@b.com", "hash", "A B");
+    private final UserAccount submittedBy = new UserAccount("a@b.com", "hash", "A B", UserRole.ROLE_EMPLOYEE);
 
     @Test
     void freshlyUploadedInvoiceHasBlockingErrorsForEveryMissingRequiredField() {
-        Invoice invoice = new Invoice(organization, submittedBy);
+        Invoice invoice = new Invoice(submittedBy);
 
         List<ValidationResult> results = service.validate(invoice);
 
@@ -33,8 +32,8 @@ class InvoiceValidationServiceTest {
 
     @Test
     void aFullyConsistentInvoicePassesEveryRule() {
-        Invoice invoice = new Invoice(organization, submittedBy);
-        invoice.setVendor(new Vendor(organization, "Adobe"));
+        Invoice invoice = new Invoice(submittedBy);
+        invoice.setVendor(new Vendor("Adobe"));
         invoice.setInvoiceNumber("INV-1");
         invoice.setInvoiceDate(LocalDate.now());
         invoice.setDueDate(LocalDate.now().plusDays(7));
@@ -125,8 +124,8 @@ class InvoiceValidationServiceTest {
     }
 
     private Invoice minimalValidInvoice() {
-        Invoice invoice = new Invoice(organization, submittedBy);
-        invoice.setVendor(new Vendor(organization, "Adobe"));
+        Invoice invoice = new Invoice(submittedBy);
+        invoice.setVendor(new Vendor("Adobe"));
         invoice.setInvoiceNumber("INV-1");
         invoice.setInvoiceDate(LocalDate.now());
         invoice.setTotalAmount(new BigDecimal("100.00"));

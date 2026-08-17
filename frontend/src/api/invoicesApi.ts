@@ -1,16 +1,9 @@
 import { httpClient } from "@/api/httpClient";
 import type { Invoice, InvoiceLineItem, InvoiceStatus, InvoiceSummary, Page } from "@/types/invoice";
-import type { PaymentMethod } from "@/types/finance";
-
-export interface SchedulePaymentPayload {
-  amount: number;
-  scheduledDate: string;
-  method: PaymentMethod;
-  reference?: string;
-  notes?: string;
-}
+import type { AiAnswerResponse } from "@/types/ai";
 
 export interface InvoiceLineItemPayload {
+  lineOrder?: number;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -56,32 +49,16 @@ export const invoicesApi = {
 
   verify: (id: string) => httpClient.post<Invoice>(`/api/invoices/${id}/verify`).then((r) => r.data),
 
-  archive: (id: string) => httpClient.post<Invoice>(`/api/invoices/${id}/archive`).then((r) => r.data),
-
-  submitForApproval: (id: string) => httpClient.post<Invoice>(`/api/invoices/${id}/submit-for-approval`).then((r) => r.data),
-
   approve: (id: string) => httpClient.post<Invoice>(`/api/invoices/${id}/approve`).then((r) => r.data),
 
   reject: (id: string, reason: string) =>
     httpClient.post<Invoice>(`/api/invoices/${id}/reject`, { reason }).then((r) => r.data),
 
-  dispute: (id: string, reason: string) =>
-    httpClient.post<Invoice>(`/api/invoices/${id}/dispute`, { reason }).then((r) => r.data),
+  archive: (id: string) => httpClient.post<Invoice>(`/api/invoices/${id}/archive`).then((r) => r.data),
 
-  resolveDispute: (id: string) => httpClient.post<Invoice>(`/api/invoices/${id}/resolve-dispute`).then((r) => r.data),
+  askQuestion: (id: string, question: string) =>
+    httpClient.post<AiAnswerResponse>(`/api/invoices/${id}/ask`, { question }).then((r) => r.data),
 
-  schedulePayment: (id: string, payload: SchedulePaymentPayload) =>
-    httpClient.post<Invoice>(`/api/invoices/${id}/payments`, payload).then((r) => r.data),
-
-  completePayment: (id: string, paymentId: string) =>
-    httpClient.post<Invoice>(`/api/invoices/${id}/payments/${paymentId}/complete`).then((r) => r.data),
-
-  cancelPayment: (id: string, paymentId: string) =>
-    httpClient.post<Invoice>(`/api/invoices/${id}/payments/${paymentId}/cancel`).then((r) => r.data),
-
-  // The document endpoint requires the same Bearer auth as everything else,
-  // so it can't be linked to directly (e.g. <a href>) — fetch it as a blob
-  // and hand the caller an object URL to embed/download instead.
   downloadDocument: (id: string) =>
     httpClient.get(`/api/invoices/${id}/document`, { responseType: "blob" }).then((r) => r.data as Blob),
 

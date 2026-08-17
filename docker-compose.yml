@@ -17,20 +17,6 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    container_name: invoiceiq-redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   backend:
     build:
       context: ./backend
@@ -39,14 +25,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/${DATABASE_NAME:-invoiceiq}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-invoiceiq}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-invoiceiq}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       AI_PROVIDER: ${AI_PROVIDER:-mock}
       AI_API_KEY: ${AI_API_KEY:-}
@@ -80,5 +62,4 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   document_storage:

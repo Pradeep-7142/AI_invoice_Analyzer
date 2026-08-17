@@ -2,17 +2,17 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { authApi, type LoginPayload, type RegisterPayload } from "@/api/authApi";
 import { registerSessionExpiredHandler } from "@/api/httpClient";
 import { tokenStorage } from "@/api/tokenStorage";
-import type { OrganizationSummary, OrgRole, UserSummary } from "@/types/auth";
+import type { UserRole, UserSummary } from "@/types/auth";
 
 interface AuthState {
   user: UserSummary | null;
-  organization: OrganizationSummary | null;
-  role: OrgRole | null;
+  role: UserRole | null;
 }
 
 interface AuthContextValue extends AuthState {
   isInitializing: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
@@ -20,7 +20,7 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const EMPTY_STATE: AuthState = { user: null, organization: null, role: null };
+const EMPTY_STATE: AuthState = { user: null, role: null };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(EMPTY_STATE);
@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         const me = await authApi.me();
-        setState({ user: me.user, organization: me.organization, role: me.role });
+        setState({ user: me.user, role: me.user.role });
       } catch {
         tokenStorage.clear();
         setState(EMPTY_STATE);
@@ -54,15 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...state,
       isInitializing,
       isAuthenticated: state.user !== null,
+      isAdmin: state.user?.role === "ROLE_ADMIN",
       login: async (payload) => {
         const response = await authApi.login(payload);
         tokenStorage.setTokens(response.accessToken, response.refreshToken);
-        setState({ user: response.user, organization: response.organization, role: response.role });
+        setState({ user: response.user, role: response.user.role });
       },
       register: async (payload) => {
         const response = await authApi.register(payload);
         tokenStorage.setTokens(response.accessToken, response.refreshToken);
-        setState({ user: response.user, organization: response.organization, role: response.role });
+        setState({ user: response.user, role: response.user.role });
       },
       logout: async () => {
         const refreshToken = tokenStorage.getRefreshToken();

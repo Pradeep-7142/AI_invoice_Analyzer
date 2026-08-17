@@ -1,7 +1,6 @@
 package com.invoiceiq.dto;
 
 import com.invoiceiq.entity.InvoiceStatus;
-import com.invoiceiq.entity.OrgRole;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -23,19 +22,10 @@ public record InvoiceResponse(
     BigDecimal totalAmount,
     InvoiceStatus status,
     String notes,
-    String disputeReason,
+    String rejectionReason,
     Map<String, Double> fieldConfidence,
     List<ValidationResultDto> validationResults,
     List<DuplicateWarningDto> duplicateWarnings,
-    AnomalyDto anomaly,
-    RecurringExpenseDto recurringExpense,
-    int riskScore,
-    List<String> riskReasons,
-    OrgRole requiredApprovalRole,
-    List<ApprovalDecisionDto> approvalHistory,
-    List<PaymentDto> payments,
-    BigDecimal paidAmount,
-    BigDecimal outstandingAmount,
     UserSummaryDto submittedBy,
     List<InvoiceLineItemResponse> lineItems,
     List<InvoiceDocumentResponse> documents,

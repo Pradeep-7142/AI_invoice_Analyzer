@@ -1,10 +1,9 @@
 package com.invoiceiq.dto;
 
-import com.invoiceiq.entity.OrgRole;
+import com.invoiceiq.entity.UserRole;
 
 public record CurrentUserResponse(
     UserSummaryDto user,
-    OrganizationSummaryDto organization,
-    OrgRole role
+    UserRole role
 ) {
 }

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
+  Autocomplete,
+  Avatar,
   Box,
   Button,
   Chip,
@@ -11,75 +13,92 @@ import {
   Stack,
   TextField,
   Typography,
-  Card,
-  CardContent,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { aiApi } from "@/api/aiApi";
-import type { ChatMessage, QuickInsight } from "@/types/ai";
+import { useQuery } from "@tanstack/react-query";
+import { invoicesApi } from "@/api/invoicesApi";
 import { useAuth } from "@/features/auth/AuthContext";
+import type { InvoiceSummary } from "@/types/invoice";
 
 const SUGGESTED_PROMPTS = [
-  "How much did we spend in total over the last 6 months?",
-  "Which vendors have the highest spend?",
-  "Are any category budgets exceeded this month?",
-  "What are our expected cash obligations for the next 30 days?",
-  "Do we have any overdue invoices?",
+  "Summarize this invoice details and line items",
+  "Is the tax amount calculated accurately?",
+  "What is the payment due date and status?",
+  "List vendor information and registration",
 ];
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export function AiAssistantPage() {
-  const { user, organization } = useAuth();
+  const { user } = useAuth();
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceSummary | null>(null);
   const [input, setInput] = useState("");
+  const [isAsking, setIsAsking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: `Hello ${user?.fullName ?? "there"}! I am your **InvoiceIQ Finance Copilot**.\n\nI can analyze your company's live financial data, explain spend trends, forecast cash outflows, track budgets, and inspect vendor risks. Ask me anything or select a suggestion below.`,
+      content: `Hello ${user?.fullName ?? "there"}! I am your **InvoiceIQ AI Assistant**.\n\nSelect an invoice from your system above and ask any question about line items, tax breakdowns, vendor verification, or payment due dates.`,
     },
   ]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const quickInsightsQuery = useQuery({
-    queryKey: ["ai", "quick-insights"],
-    queryFn: aiApi.getQuickInsights,
+  const invoicesQuery = useQuery({
+    queryKey: ["invoices"],
+    queryFn: () => invoicesApi.list(),
   });
 
-  const chatMutation = useMutation({
-    mutationFn: (userMessage: string) => {
-      const history = messages.slice(1); // omit initial greeting
-      return aiApi.chat(userMessage, history);
-    },
-    onSuccess: (data) => {
-      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
-    },
-    onError: () => {
+  const invoices = invoicesQuery.data?.content ?? [];
+
+  useEffect(() => {
+    if (invoices.length > 0 && !selectedInvoice) {
+      setSelectedInvoice(invoices[0] ?? null);
+    }
+  }, [invoices, selectedInvoice]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
+  }, [messages, isAsking]);
+
+  const handleSend = async (customPrompt?: string) => {
+    const text = (customPrompt ?? input).trim();
+    if (!text || isAsking) return;
+
+    if (!selectedInvoice) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: "Please select an invoice first from the dropdown above." },
+      ]);
+      setInput("");
+      return;
+    }
+
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setInput("");
+    setIsAsking(true);
+
+    try {
+      const response = await invoicesApi.askQuestion(selectedInvoice.id, text);
+      setMessages((prev) => [...prev, { role: "assistant", content: response.answer }]);
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "⚠️ *Unable to reach AI copilot service. Please verify your connection or try again.*",
+          content: "⚠️ *Unable to reach AI assistant service. Please check your connection or try again.*",
         },
       ]);
-    },
-  });
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
-  }, [messages, chatMutation.isPending]);
-
-  const handleSend = (textToSend?: string) => {
-    const text = (textToSend ?? input).trim();
-    if (!text || chatMutation.isPending) return;
-
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
-    setInput("");
-    chatMutation.mutate(text);
+    } finally {
+      setIsAsking(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -90,12 +109,11 @@ export function AiAssistantPage() {
   };
 
   const renderFormattedContent = (content: string) => {
-    // Basic Markdown converter for clean display
     const lines = content.split("\n");
     return lines.map((line, idx) => {
       if (line.startsWith("### ")) {
         return (
-          <Typography key={idx} variant="h6" fontWeight={700} sx={{ mt: 1.5, mb: 0.5 }}>
+          <Typography key={idx} variant="h6" fontWeight={700} sx={{ mt: 1, mb: 0.5 }}>
             {line.replace("### ", "")}
           </Typography>
         );
@@ -103,8 +121,10 @@ export function AiAssistantPage() {
       if (line.startsWith("- ")) {
         return (
           <Box key={idx} sx={{ display: "flex", alignItems: "flex-start", ml: 1, my: 0.3 }}>
-            <Typography variant="body2" sx={{ mr: 1, color: "primary.main" }}>•</Typography>
-            <Typography variant="body2">{formatInline(line.substring(2))}</Typography>
+            <Typography variant="body2" sx={{ mr: 1, color: "primary.main" }}>
+              •
+            </Typography>
+            <Typography variant="body2">{line.substring(2)}</Typography>
           </Box>
         );
       }
@@ -113,55 +133,49 @@ export function AiAssistantPage() {
       }
       return (
         <Typography key={idx} variant="body2" sx={{ my: 0.3 }}>
-          {formatInline(line)}
+          {line}
         </Typography>
       );
-    });
-  };
-
-  const formatInline = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={i}>{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith("*") && part.endsWith("*")) {
-        return <em key={i}>{part.slice(1, -1)}</em>;
-      }
-      return part;
     });
   };
 
   return (
     <Stack spacing={3} sx={{ height: "calc(100vh - 120px)" }}>
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ sm: "center" }}
+        spacing={2}
+      >
         <Box>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <AutoAwesomeIcon color="primary" sx={{ fontSize: 28 }} />
-            <Typography variant="h4" fontWeight={700}>
-              Finance Copilot
+            <Typography variant="h4" fontWeight={700} color="#0F172A">
+              AI Invoice Assistant
             </Typography>
             <Chip
-              label="Grounded in Live Data"
+              label="Natural Language Q&A"
               size="small"
-              color="success"
+              color="primary"
               variant="outlined"
               sx={{ fontWeight: 600 }}
             />
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            Grounded financial intelligence for {organization?.name}
+            Query invoice details, verify tax structures, and analyze line items with AI assistance.
           </Typography>
         </Box>
+
         <Button
           size="small"
+          variant="outlined"
           startIcon={<RefreshOutlinedIcon />}
           onClick={() =>
             setMessages([
               {
                 role: "assistant",
-                content: `Chat session reset. What financial insights can I help you analyze today?`,
+                content: `Chat session reset. What invoice questions can I help you with?`,
               },
             ])
           }
@@ -170,29 +184,36 @@ export function AiAssistantPage() {
         </Button>
       </Stack>
 
-      {/* Quick Insights Banner */}
-      {quickInsightsQuery.data && quickInsightsQuery.data.length > 0 && (
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-          {quickInsightsQuery.data.slice(0, 3).map((insight: QuickInsight, idx: number) => (
-            <Card key={idx} variant="outlined" sx={{ flex: 1, backgroundColor: "background.paper" }}>
-              <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                  <LightbulbOutlinedIcon
-                    fontSize="small"
-                    color={insight.severity === "CRITICAL" ? "error" : insight.severity === "WARNING" ? "warning" : "primary"}
-                  />
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    {insight.title}
-                  </Typography>
-                </Stack>
-                <Typography variant="caption" color="text.secondary">
-                  {insight.summary}
-                </Typography>
-              </CardContent>
-            </Card>
-          ))}
+      {/* Invoice Selector Banner */}
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: "12px", bgcolor: "#FFFFFF" }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ whiteSpace: "nowrap" }}>
+            Target Invoice:
+          </Typography>
+          <Autocomplete
+            options={invoices}
+            getOptionLabel={(option) =>
+              `${option.invoiceNumber || "Draft"} — ${option.vendor?.name || "Unassigned"} (${
+                option.totalAmount ? `₹${option.totalAmount}` : "₹0"
+              })`
+            }
+            value={selectedInvoice}
+            onChange={(_, val) => setSelectedInvoice(val)}
+            sx={{ flexGrow: 1 }}
+            renderInput={(params) => (
+              <TextField {...params} size="small" placeholder="Select an invoice to analyze..." />
+            )}
+          />
+          {selectedInvoice && (
+            <Chip
+              label={`Status: ${selectedInvoice.status.replace("_", " ")}`}
+              size="small"
+              color="primary"
+              sx={{ fontWeight: 600 }}
+            />
+          )}
         </Stack>
-      )}
+      </Paper>
 
       {/* Chat Area */}
       <Paper
@@ -201,9 +222,10 @@ export function AiAssistantPage() {
           flexGrow: 1,
           display: "flex",
           flexDirection: "column",
-          p: 2,
+          p: 2.5,
+          borderRadius: "14px",
           overflow: "hidden",
-          backgroundColor: "background.default",
+          backgroundColor: "#FFFFFF",
         }}
       >
         {/* Messages List */}
@@ -220,82 +242,61 @@ export function AiAssistantPage() {
                   alignItems="flex-start"
                 >
                   {isAssistant && (
-                    <Paper
-                      elevation={0}
+                    <Avatar
                       sx={{
                         width: 34,
                         height: 34,
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: "primary.main",
-                        color: "primary.contrastText",
+                        bgcolor: "#3B82F6",
                         flexShrink: 0,
                       }}
                     >
                       <SmartToyOutlinedIcon fontSize="small" />
-                    </Paper>
+                    </Avatar>
                   )}
 
                   <Paper
                     variant="outlined"
                     sx={{
                       p: 2,
-                      maxWidth: "78%",
-                      borderRadius: 2,
-                      backgroundColor: isAssistant ? "background.paper" : "primary.light",
-                      color: isAssistant ? "text.primary" : "primary.contrastText",
-                      borderColor: isAssistant ? "divider" : "transparent",
+                      maxWidth: "80%",
+                      borderRadius: "12px",
+                      backgroundColor: isAssistant ? "#F8FAFC" : "#EFF6FF",
+                      color: "#0F172A",
+                      borderColor: isAssistant ? "#E2E8F0" : "#BFDBFE",
                     }}
                   >
                     {renderFormattedContent(msg.content)}
                   </Paper>
 
                   {!isAssistant && (
-                    <Paper
-                      elevation={0}
+                    <Avatar
                       sx={{
                         width: 34,
                         height: 34,
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: "secondary.main",
-                        color: "secondary.contrastText",
+                        bgcolor: "#10B981",
                         flexShrink: 0,
                       }}
                     >
                       <PersonOutlineIcon fontSize="small" />
-                    </Paper>
+                    </Avatar>
                   )}
                 </Stack>
               );
             })}
 
-            {chatMutation.isPending && (
+            {isAsking && (
               <Stack direction="row" spacing={1.5} alignItems="center">
-                <Paper
-                  elevation={0}
-                  sx={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "primary.main",
-                    color: "primary.contrastText",
-                  }}
-                >
+                <Avatar sx={{ width: 34, height: 34, bgcolor: "#3B82F6" }}>
                   <SmartToyOutlinedIcon fontSize="small" />
-                </Paper>
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: "background.paper" }}>
+                </Avatar>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, borderRadius: "12px", bgcolor: "#F8FAFC", borderColor: "#E2E8F0" }}
+                >
                   <Stack direction="row" spacing={1} alignItems="center">
                     <CircularProgress size={16} />
                     <Typography variant="body2" color="text.secondary">
-                      Analyzing financial database and computing metrics...
+                      Analyzing invoice data and formulating response...
                     </Typography>
                   </Stack>
                 </Paper>
@@ -316,10 +317,10 @@ export function AiAssistantPage() {
               label={prompt}
               size="small"
               onClick={() => handleSend(prompt)}
-              disabled={chatMutation.isPending}
+              disabled={isAsking || !selectedInvoice}
               clickable
               variant="outlined"
-              sx={{ fontSize: "0.75rem" }}
+              sx={{ fontSize: "0.78rem" }}
             />
           ))}
         </Box>
@@ -328,18 +329,18 @@ export function AiAssistantPage() {
         <TextField
           fullWidth
           size="medium"
-          placeholder="Ask a financial question (e.g., 'Why did spend increase this month?')"
+          placeholder="Ask anything about the selected invoice..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={chatMutation.isPending}
+          disabled={isAsking}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
                 <IconButton
                   color="primary"
                   onClick={() => handleSend()}
-                  disabled={!input.trim() || chatMutation.isPending}
+                  disabled={!input.trim() || isAsking}
                 >
                   <SendIcon />
                 </IconButton>

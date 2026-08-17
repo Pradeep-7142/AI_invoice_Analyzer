@@ -1,6 +1,6 @@
 import { httpClient } from "@/api/httpClient";
-import type { ActionCenter } from "@/types/dashboard";
+import type { DashboardSummary } from "@/types/dashboard";
 
 export const dashboardApi = {
-  actionCenter: () => httpClient.get<ActionCenter>("/api/dashboard/action-center").then((r) => r.data),
+  getSummary: () => httpClient.get<DashboardSummary>("/api/dashboard/summary").then((r) => r.data),
 };

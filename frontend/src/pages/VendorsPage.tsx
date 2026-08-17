@@ -7,6 +7,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -29,6 +30,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
+import AddIcon from "@mui/icons-material/Add";
 import { vendorsApi, type VendorPayload } from "@/api/vendorsApi";
 import { useAuth } from "@/features/auth/AuthContext";
 import { apiErrorMessage } from "@/utils/apiErrorMessage";
@@ -46,11 +48,8 @@ const vendorSchema = z.object({
 });
 type VendorFormValues = z.infer<typeof vendorSchema>;
 
-const CAN_MANAGE_VENDORS = new Set(["ORGANIZATION_ADMIN", "FINANCE_MANAGER", "ACCOUNTANT"]);
-
 export function VendorsPage() {
-  const { role } = useAuth();
-  const canManage = role !== null && CAN_MANAGE_VENDORS.has(role);
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -105,82 +104,114 @@ export function VendorsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["vendors"] }),
   });
 
-  const vendors = vendorsQuery.data?.content ?? [];
+  const vendors: Vendor[] = Array.isArray(vendorsQuery.data) ? vendorsQuery.data : [];
 
   return (
     <Stack spacing={3}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ sm: "center" }}
+        spacing={2}
+      >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
-            Vendors
+          <Typography variant="h4" fontWeight={700} color="#0F172A">
+            Vendors Directory
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Vendors referenced by your organization's invoices.
+            Manage vendors, GSTIN details, and track vendor relationships.
           </Typography>
         </Box>
-        {canManage && <Button variant="contained" onClick={() => openDialog("new")}>Add vendor</Button>}
+        {isAdmin && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openDialog("new")}>
+            Add Vendor
+          </Button>
+        )}
       </Stack>
 
       <TextField
-        placeholder="Search vendors..."
+        placeholder="Search vendors by name..."
         size="small"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        sx={{ maxWidth: 320 }}
-        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+        sx={{ maxWidth: 360 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon fontSize="small" color="action" />
+            </InputAdornment>
+          ),
+        }}
       />
 
-      <TableContainer component={Paper} variant="outlined">
+      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "14px" }}>
         <Table>
-          <TableHead>
+          <TableHead sx={{ bgcolor: "#F8FAFC" }}>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Category</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Phone</TableCell>
-              {canManage && <TableCell align="right">Actions</TableCell>}
+              <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Vendor Name</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Category</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>GSTIN / Tax ID</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Email</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Phone</TableCell>
+              {isAdmin && <TableCell align="right" sx={{ fontWeight: 600, color: "#64748B" }}>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
             {vendorsQuery.isLoading &&
               [1, 2, 3].map((i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={5}><Skeleton variant="text" /></TableCell>
+                  <TableCell colSpan={6}>
+                    <Skeleton variant="text" height={32} />
+                  </TableCell>
                 </TableRow>
               ))}
 
-            {vendors.map((vendor) => (
-              <TableRow key={vendor.id} hover>
-                <TableCell>{vendor.name}</TableCell>
-                <TableCell>{vendor.category ?? "—"}</TableCell>
-                <TableCell>{vendor.email ?? "—"}</TableCell>
-                <TableCell>{vendor.phone ?? "—"}</TableCell>
-                {canManage && (
-                  <TableCell align="right">
-                    <IconButton size="small" onClick={() => openDialog(vendor)}>
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        if (window.confirm(`Archive vendor "${vendor.name}"? It will be hidden from lists but historical invoices are unaffected.`)) {
-                          archiveMutation.mutate(vendor.id);
-                        }
-                      }}
-                    >
-                      <ArchiveOutlinedIcon fontSize="small" />
-                    </IconButton>
+            {!vendorsQuery.isLoading &&
+              vendors.map((vendor) => (
+                <TableRow key={vendor.id} hover>
+                  <TableCell sx={{ fontWeight: 600, color: "#0F172A" }}>{vendor.name}</TableCell>
+                  <TableCell>
+                    {vendor.category ? (
+                      <Chip label={vendor.category} size="small" variant="outlined" sx={{ fontSize: "0.75rem" }} />
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
+                  <TableCell>{vendor.gstin || vendor.taxId || "—"}</TableCell>
+                  <TableCell>{vendor.email || "—"}</TableCell>
+                  <TableCell>{vendor.phone || "—"}</TableCell>
+                  {isAdmin && (
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => openDialog(vendor)} color="primary">
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          if (window.confirm(`Archive vendor "${vendor.name}"?`)) {
+                            archiveMutation.mutate(vendor.id);
+                          }
+                        }}
+                      >
+                        <ArchiveOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
 
             {!vendorsQuery.isLoading && vendors.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                    No vendors yet. {canManage && "Add your first vendor to start linking invoices to it."}
-                  </Typography>
+                <TableCell colSpan={6}>
+                  <Box sx={{ py: 6, textAlign: "center" }}>
+                    <Typography variant="body1" fontWeight={600} color="text.secondary">
+                      No vendors found
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {isAdmin ? "Click 'Add Vendor' to create your first vendor." : "No vendors registered in the system."}
+                    </Typography>
+                  </Box>
                 </TableCell>
               </TableRow>
             )}
@@ -188,6 +219,7 @@ export function VendorsPage() {
         </Table>
       </TableContainer>
 
+      {/* Add / Edit Vendor Dialog */}
       <Dialog open={dialogVendor !== null} onClose={() => setDialogVendor(null)} fullWidth maxWidth="sm">
         <Box
           component="form"
@@ -196,29 +228,48 @@ export function VendorsPage() {
             saveMutation.mutate(values);
           })}
         >
-          <DialogTitle>{dialogVendor === "new" ? "Add vendor" : "Edit vendor"}</DialogTitle>
+          <DialogTitle fontWeight={700}>
+            {dialogVendor === "new" ? "Add New Vendor" : `Edit Vendor: ${dialogVendor?.name}`}
+          </DialogTitle>
           <DialogContent>
-            {actionError && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
+            {actionError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {actionError}
+              </Alert>
+            )}
             <Grid container spacing={2} sx={{ mt: 0.5 }}>
               <Grid item xs={12}>
-                <TextField label="Name" fullWidth error={!!errors.name} helperText={errors.name?.message} {...register("name")} />
+                <TextField
+                  label="Vendor Name"
+                  fullWidth
+                  error={!!errors.name}
+                  helperText={errors.name?.message}
+                  {...register("name")}
+                />
               </Grid>
-              <Grid item xs={6}>
-                <TextField label="Email" fullWidth error={!!errors.email} helperText={errors.email?.message} {...register("email")} />
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Email"
+                  type="email"
+                  fullWidth
+                  error={!!errors.email}
+                  helperText={errors.email?.message}
+                  {...register("email")}
+                />
               </Grid>
-              <Grid item xs={6}>
+              <Grid item xs={12} sm={6}>
                 <TextField label="Phone" fullWidth {...register("phone")} />
               </Grid>
               <Grid item xs={12}>
                 <TextField label="Address" fullWidth multiline minRows={2} {...register("address")} />
               </Grid>
-              <Grid item xs={4}>
-                <TextField label="Category" fullWidth {...register("category")} />
+              <Grid item xs={12} sm={4}>
+                <TextField label="Category (e.g. Cloud, Utilities)" fullWidth {...register("category")} />
               </Grid>
-              <Grid item xs={4}>
+              <Grid item xs={12} sm={4}>
                 <TextField label="GSTIN" fullWidth {...register("gstin")} />
               </Grid>
-              <Grid item xs={4}>
+              <Grid item xs={12} sm={4}>
                 <TextField label="Tax ID" fullWidth {...register("taxId")} />
               </Grid>
               <Grid item xs={12}>
@@ -226,10 +277,10 @@ export function VendorsPage() {
               </Grid>
             </Grid>
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button onClick={() => setDialogVendor(null)}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={isSubmitting}>
-              Save
+            <Button type="submit" variant="contained" disabled={isSubmitting || saveMutation.isPending}>
+              {saveMutation.isPending ? "Saving..." : "Save Vendor"}
             </Button>
           </DialogActions>
         </Box>

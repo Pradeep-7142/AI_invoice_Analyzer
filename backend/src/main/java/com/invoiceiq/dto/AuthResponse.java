@@ -1,13 +1,12 @@
 package com.invoiceiq.dto;
 
-import com.invoiceiq.entity.OrgRole;
+import com.invoiceiq.entity.UserRole;
 
 public record AuthResponse(
     String accessToken,
     String refreshToken,
     long expiresInSeconds,
-    OrgRole role,
-    UserSummaryDto user,
-    OrganizationSummaryDto organization
+    UserRole role,
+    UserSummaryDto user
 ) {
 }

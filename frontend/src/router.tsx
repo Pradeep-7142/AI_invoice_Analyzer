@@ -4,14 +4,10 @@ import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { AiAssistantPage } from "@/pages/AiAssistantPage";
-import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { InvoicesPage } from "@/pages/InvoicesPage";
 import { InvoiceDetailPage } from "@/pages/InvoiceDetailPage";
 import { VendorsPage } from "@/pages/VendorsPage";
-import { PaymentsPage } from "@/pages/PaymentsPage";
-import { BudgetsPage } from "@/pages/BudgetsPage";
-import { OrganizationUsersPage } from "@/pages/settings/OrganizationUsersPage";
-import { FinanceSettingsPage } from "@/pages/settings/FinanceSettingsPage";
+import { UsersPage } from "@/pages/UsersPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 
 export const router = createBrowserRouter([
@@ -26,15 +22,12 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: "dashboard", element: <DashboardPage /> },
-          { path: "ai-assistant", element: <AiAssistantPage /> },
           { path: "invoices", element: <InvoicesPage /> },
-          { path: "invoices/:invoiceId", element: <InvoiceDetailPage /> },
+          { path: "invoices/:id", element: <InvoiceDetailPage /> },
           { path: "vendors", element: <VendorsPage /> },
-          { path: "payments", element: <PaymentsPage /> },
-          { path: "budgets", element: <BudgetsPage /> },
-          { path: "analytics", element: <AnalyticsPage /> },
-          { path: "settings/users", element: <OrganizationUsersPage /> },
-          { path: "settings/finance", element: <FinanceSettingsPage /> },
+          { path: "ai-assistant", element: <AiAssistantPage /> },
+          { path: "users", element: <UsersPage /> },
+          { path: "*", element: <Navigate to="/dashboard" replace /> },
         ],
       },
     ],

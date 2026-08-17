@@ -16,16 +16,18 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "invoices")
 public class Invoice extends BaseEntity {
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "organization_id", nullable = false)
-    private Organization organization;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vendor_id")
@@ -66,17 +68,12 @@ public class Invoice extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    /** Reason given the last time this invoice was disputed; cleared when the dispute is resolved. */
-    @Column(name = "dispute_reason", columnDefinition = "TEXT")
-    private String disputeReason;
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
 
-    /** Vendor name as read off the document, kept even when it doesn't
-     * resolve to an existing {@link Vendor} record, so the reviewer isn't
-     * starting from nothing. */
     @Column(name = "vendor_name_raw")
     private String vendorNameRaw;
 
-    /** Per-field AI extraction confidence (0.0–1.0), e.g. {"invoiceNumber": 0.92}. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "field_confidence", columnDefinition = "jsonb")
     private Map<String, Double> fieldConfidence;
@@ -89,145 +86,16 @@ public class Invoice extends BaseEntity {
     @OrderBy("createdAt DESC")
     private List<InvoiceDocument> documents = new ArrayList<>();
 
-    protected Invoice() {
-    }
-
-    public Invoice(Organization organization, UserAccount submittedBy) {
-        this.organization = organization;
+    public Invoice(UserAccount submittedBy) {
         this.submittedBy = submittedBy;
-    }
-
-    public Organization getOrganization() {
-        return organization;
-    }
-
-    public Vendor getVendor() {
-        return vendor;
-    }
-
-    public void setVendor(Vendor vendor) {
-        this.vendor = vendor;
-    }
-
-    public UserAccount getSubmittedBy() {
-        return submittedBy;
-    }
-
-    public String getInvoiceNumber() {
-        return invoiceNumber;
-    }
-
-    public void setInvoiceNumber(String invoiceNumber) {
-        this.invoiceNumber = invoiceNumber;
-    }
-
-    public LocalDate getInvoiceDate() {
-        return invoiceDate;
-    }
-
-    public void setInvoiceDate(LocalDate invoiceDate) {
-        this.invoiceDate = invoiceDate;
-    }
-
-    public LocalDate getDueDate() {
-        return dueDate;
-    }
-
-    public void setDueDate(LocalDate dueDate) {
-        this.dueDate = dueDate;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public BigDecimal getSubtotalAmount() {
-        return subtotalAmount;
-    }
-
-    public void setSubtotalAmount(BigDecimal subtotalAmount) {
-        this.subtotalAmount = subtotalAmount;
-    }
-
-    public BigDecimal getTaxAmount() {
-        return taxAmount;
-    }
-
-    public void setTaxAmount(BigDecimal taxAmount) {
-        this.taxAmount = taxAmount;
-    }
-
-    public BigDecimal getDiscountAmount() {
-        return discountAmount;
-    }
-
-    public void setDiscountAmount(BigDecimal discountAmount) {
-        this.discountAmount = discountAmount;
-    }
-
-    public BigDecimal getTotalAmount() {
-        return totalAmount;
-    }
-
-    public void setTotalAmount(BigDecimal totalAmount) {
-        this.totalAmount = totalAmount;
-    }
-
-    public InvoiceStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(InvoiceStatus status) {
-        this.status = status;
-    }
-
-    public String getNotes() {
-        return notes;
-    }
-
-    public void setNotes(String notes) {
-        this.notes = notes;
-    }
-
-    public String getDisputeReason() {
-        return disputeReason;
-    }
-
-    public void setDisputeReason(String disputeReason) {
-        this.disputeReason = disputeReason;
-    }
-
-    public String getVendorNameRaw() {
-        return vendorNameRaw;
-    }
-
-    public void setVendorNameRaw(String vendorNameRaw) {
-        this.vendorNameRaw = vendorNameRaw;
-    }
-
-    public Map<String, Double> getFieldConfidence() {
-        return fieldConfidence;
-    }
-
-    public void setFieldConfidence(Map<String, Double> fieldConfidence) {
-        this.fieldConfidence = fieldConfidence;
-    }
-
-    public List<InvoiceLineItem> getLineItems() {
-        return lineItems;
+        this.status = InvoiceStatus.UPLOADED;
     }
 
     public void replaceLineItems(List<InvoiceLineItem> newLineItems) {
         this.lineItems.clear();
-        this.lineItems.addAll(newLineItems);
-    }
-
-    public List<InvoiceDocument> getDocuments() {
-        return documents;
+        if (newLineItems != null) {
+            this.lineItems.addAll(newLineItems);
+        }
     }
 
     public void addDocument(InvoiceDocument document) {

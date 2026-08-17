@@ -2,8 +2,10 @@ package com.invoiceiq.controller;
 
 import com.invoiceiq.dto.VendorRequest;
 import com.invoiceiq.dto.VendorResponse;
+import com.invoiceiq.dto.VendorSummaryDto;
 import com.invoiceiq.service.VendorService;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,8 +28,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/vendors")
 public class VendorController {
 
-    private static final String MANAGE_VENDORS = "hasAnyAuthority('ORGANIZATION_ADMIN', 'FINANCE_MANAGER', 'ACCOUNTANT')";
-
     private final VendorService vendorService;
 
     public VendorController(VendorService vendorService) {
@@ -37,9 +37,14 @@ public class VendorController {
     @GetMapping
     public Page<VendorResponse> list(
         @RequestParam(required = false) String search,
-        @PageableDefault(size = 25) Pageable pageable
+        @PageableDefault(size = 20) Pageable pageable
     ) {
         return vendorService.list(search, pageable);
+    }
+
+    @GetMapping("/all")
+    public List<VendorSummaryDto> listAll() {
+        return vendorService.listAll();
     }
 
     @GetMapping("/{vendorId}")
@@ -49,19 +54,16 @@ public class VendorController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize(MANAGE_VENDORS)
     public VendorResponse create(@Valid @RequestBody VendorRequest request) {
         return vendorService.create(request);
     }
 
     @PutMapping("/{vendorId}")
-    @PreAuthorize(MANAGE_VENDORS)
     public VendorResponse update(@PathVariable UUID vendorId, @Valid @RequestBody VendorRequest request) {
         return vendorService.update(vendorId, request);
     }
 
     @DeleteMapping("/{vendorId}")
-    @PreAuthorize(MANAGE_VENDORS)
     public ResponseEntity<Void> archive(@PathVariable UUID vendorId) {
         vendorService.archive(vendorId);
         return ResponseEntity.noContent().build();

@@ -1,6 +1,7 @@
 package com.invoiceiq.controller;
 
 import com.invoiceiq.dto.AuthResponse;
+import com.invoiceiq.dto.CurrentUserResponse;
 import com.invoiceiq.dto.LoginRequest;
 import com.invoiceiq.dto.RefreshRequest;
 import com.invoiceiq.dto.RegisterRequest;
@@ -8,6 +9,7 @@ import com.invoiceiq.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -42,5 +44,10 @@ public class AuthController {
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshRequest request) {
         authService.logout(request);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/api/auth/me")
+    public CurrentUserResponse getCurrentUser() {
+        return authService.getCurrentUser();
     }
 }

@@ -1,17 +1,10 @@
-import type { ApprovalDecision, ApprovalRole, Payment, RecurringExpense } from "@/types/finance";
-
 export type InvoiceStatus =
   | "UPLOADED"
   | "PROCESSING"
   | "NEEDS_REVIEW"
   | "VERIFIED"
-  | "PENDING_APPROVAL"
   | "APPROVED"
-  | "PAYMENT_SCHEDULED"
-  | "PARTIALLY_PAID"
-  | "PAID"
-  | "OVERDUE"
-  | "DISPUTED"
+  | "REJECTED"
   | "ARCHIVED";
 
 export interface VendorSummary {
@@ -35,7 +28,7 @@ export interface Vendor {
 }
 
 export interface InvoiceLineItem {
-  id: string;
+  id?: string;
   lineOrder: number;
   description: string;
   quantity: number;
@@ -83,7 +76,7 @@ export interface InvoiceSummary {
 export type ValidationStatus = "PASS" | "WARNING" | "ERROR";
 
 export interface ValidationResult {
-  rule: string;
+  ruleCode: string;
   status: ValidationStatus;
   message: string;
 }
@@ -93,11 +86,6 @@ export interface DuplicateWarning {
   invoiceNumber: string | null;
   probability: number;
   reason: string;
-}
-
-export interface Anomaly {
-  severity: "MEDIUM" | "HIGH";
-  explanation: string;
 }
 
 export interface Invoice {
@@ -114,19 +102,10 @@ export interface Invoice {
   totalAmount: number | null;
   status: InvoiceStatus;
   notes: string | null;
-  disputeReason: string | null;
+  rejectionReason: string | null;
   fieldConfidence: Record<string, number> | null;
   validationResults: ValidationResult[];
   duplicateWarnings: DuplicateWarning[];
-  anomaly: Anomaly | null;
-  recurringExpense: RecurringExpense | null;
-  riskScore: number;
-  riskReasons: string[];
-  requiredApprovalRole: ApprovalRole | null;
-  approvalHistory: ApprovalDecision[];
-  payments: Payment[];
-  paidAmount: number | null;
-  outstandingAmount: number | null;
   submittedBy: { id: string; email: string; fullName: string };
   lineItems: InvoiceLineItem[];
   documents: InvoiceDocument[];

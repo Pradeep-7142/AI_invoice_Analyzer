@@ -19,7 +19,7 @@ class DocumentIntelligenceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void extractsFieldsWithConfidenceFromAWellFormedInvoicePdf() throws Exception {
-        String adminToken = registerAndGetAccessToken("Intel Co", "Ivy Admin", "ivy@intelco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Ivy Admin", "ivy@intelco.test", "password123");
 
         byte[] pdf = pdfWithText(
             "Zoom Video Communications",
@@ -48,7 +48,7 @@ class DocumentIntelligenceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void resolvesExtractedVendorNameToAnExistingVendorRecord() throws Exception {
-        String adminToken = registerAndGetAccessToken("Resolve Co", "Rae Admin", "rae@resolveco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Rae Admin", "rae@resolveco.test", "password123");
 
         mockMvc.perform(post("/api/vendors")
                 .header("Authorization", "Bearer " + adminToken)
@@ -64,7 +64,7 @@ class DocumentIntelligenceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void rejectsAPurchaseOrderWithAClearExplanationButStillPersistsTheRecord() throws Exception {
-        String adminToken = registerAndGetAccessToken("Reject Co", "Rex Admin", "rex@rejectco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Rex Admin", "rex@rejectco.test", "password123");
 
         byte[] pdf = pdfWithText("PURCHASE ORDER", "PO Number: PO-991", "Ship To: Main Warehouse");
         MvcResult upload = uploadInvoice(adminToken, "po.pdf", pdf);
@@ -79,7 +79,7 @@ class DocumentIntelligenceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void rejectsAPasswordProtectedPdfWithAClearReason() throws Exception {
-        String adminToken = registerAndGetAccessToken("Locked Doc Co", "Lyn Admin", "lyn@lockeddocco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Lyn Admin", "lyn@lockeddocco.test", "password123");
 
         MvcResult upload = uploadInvoice(adminToken, "locked.pdf", passwordProtectedPdfBytes());
 
@@ -90,7 +90,7 @@ class DocumentIntelligenceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void rejectsACorruptedPdfWithAClearReason() throws Exception {
-        String adminToken = registerAndGetAccessToken("Corrupt Co", "Cor Admin", "cor@corruptco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Cor Admin", "cor@corruptco.test", "password123");
 
         MvcResult upload = uploadInvoice(adminToken, "broken.pdf", corruptedPdfBytes());
 
@@ -101,7 +101,7 @@ class DocumentIntelligenceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void aBlankPdfWithNoTextIsNeedsReviewRatherThanRejected() throws Exception {
-        String adminToken = registerAndGetAccessToken("Blank Co", "Bea Admin", "bea@blankco.test", "password123");
+        String adminToken = registerAndGetAccessToken("Bea Admin", "bea@blankco.test", "password123");
 
         MvcResult upload = uploadInvoice(adminToken, "blank.pdf", minimalPdfBytes());
         String body = upload.getResponse().getContentAsString();

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
@@ -15,178 +14,384 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
+  TableHead,
   TableRow,
   Typography,
 } from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import PendingActionsIcon from "@mui/icons-material/PendingActions";
+import VerifiedIcon from "@mui/icons-material/Verified";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { dashboardApi } from "@/api/dashboardApi";
-import { aiApi } from "@/api/aiApi";
 import { useAuth } from "@/features/auth/AuthContext";
-import type { InvoiceSummary } from "@/types/invoice";
-import type { BudgetStatus } from "@/types/finance";
-import type { QuickInsight } from "@/types/ai";
+import type { InvoiceStatus } from "@/types/invoice";
 
-function formatCurrency(amount: number | null, currency: string) {
-  if (amount === null) return "—";
+function formatCurrency(amount: number | null, currency = "INR") {
+  if (amount === null || amount === undefined) return "₹0.00";
   return new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(amount);
 }
 
-function InvoiceAttentionTable({ invoices }: { invoices: InvoiceSummary[] }) {
-  const navigate = useNavigate();
-  return (
-    <Table size="small">
-      <TableBody>
-        {invoices.map((invoice) => (
-          <TableRow key={invoice.id} hover sx={{ cursor: "pointer" }} onClick={() => navigate(`/invoices/${invoice.id}`)}>
-            <TableCell>{invoice.invoiceNumber ?? <em>Untitled</em>}</TableCell>
-            <TableCell>{invoice.vendor?.name ?? "—"}</TableCell>
-            <TableCell align="right">{formatCurrency(invoice.totalAmount, invoice.currency)}</TableCell>
-            <TableCell><Chip size="small" label={invoice.status.replaceAll("_", " ")} /></TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function BudgetAttentionTable({ budgets }: { budgets: BudgetStatus[] }) {
-  const navigate = useNavigate();
-  return (
-    <Table size="small">
-      <TableBody>
-        {budgets.map((budget) => (
-          <TableRow key={budget.budgetId} hover sx={{ cursor: "pointer" }} onClick={() => navigate("/budgets")}>
-            <TableCell>{budget.category}</TableCell>
-            <TableCell align="right">{formatCurrency(budget.actualSpend, budget.currency)} of {formatCurrency(budget.monthlyLimit, budget.currency)}</TableCell>
-            <TableCell align="right"><Chip size="small" color="error" label={`${budget.percentUsed.toFixed(0)}%`} /></TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function AttentionSection({ title, emptyLabel, children, count }: { title: string; emptyLabel: string; count: number; children: ReactNode }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-        <Typography variant="subtitle1">{title}</Typography>
-        {count > 0 && <Chip size="small" label={count} />}
-      </Stack>
-      {count === 0 ? (
-        <Typography variant="body2" color="text.secondary">{emptyLabel}</Typography>
-      ) : (
-        children
-      )}
-    </Paper>
-  );
+function getStatusChipColor(status: InvoiceStatus) {
+  switch (status) {
+    case "APPROVED":
+    case "VERIFIED":
+      return "success";
+    case "NEEDS_REVIEW":
+    case "UPLOADED":
+      return "warning";
+    case "REJECTED":
+      return "error";
+    default:
+      return "default";
+  }
 }
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const actionCenterQuery = useQuery({ queryKey: ["action-center"], queryFn: dashboardApi.actionCenter });
-  const quickInsightsQuery = useQuery({ queryKey: ["ai-quick-insights"], queryFn: aiApi.getQuickInsights });
+  const navigate = useNavigate();
 
-  if (actionCenterQuery.isLoading) {
-    return <Skeleton variant="rectangular" height={400} />;
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["dashboard-summary"],
+    queryFn: dashboardApi.getSummary,
+  });
+
+  if (isLoading) {
+    return (
+      <Stack spacing={3}>
+        <Skeleton variant="rectangular" height={100} sx={{ borderRadius: "12px" }} />
+        <Grid container spacing={3}>
+          {[1, 2, 3, 4].map((i) => (
+            <Grid item xs={12} sm={6} md={3} key={i}>
+              <Skeleton variant="rectangular" height={120} sx={{ borderRadius: "12px" }} />
+            </Grid>
+          ))}
+        </Grid>
+        <Skeleton variant="rectangular" height={300} sx={{ borderRadius: "12px" }} />
+      </Stack>
+    );
   }
 
-  if (actionCenterQuery.isError) {
-    return <Alert severity="error">Unable to load your dashboard right now.</Alert>;
+  if (isError || !data) {
+    return (
+      <Alert severity="error" action={<Button onClick={() => refetch()}>Retry</Button>}>
+        Unable to load dashboard data. Please try again.
+      </Alert>
+    );
   }
 
-  const data = actionCenterQuery.data!;
-  const totalAttentionItems =
-    data.pendingMyApproval.length + data.needsMyAttention.length + data.overdueInvoices.length + data.overBudgetCategories.length;
+  const vendorChartData = (data.topVendors || []).map((v) => ({
+    name: v.vendorName.length > 15 ? v.vendorName.substring(0, 15) + "..." : v.vendorName,
+    spend: v.totalAmount,
+  }));
+
+  const monthlyChartData = (data.monthlyTrends || []).map((m) => ({
+    month: m.month,
+    spend: m.totalAmount,
+  }));
 
   return (
-    <Stack spacing={3}>
-      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={2}>
+    <Stack spacing={3.5}>
+      {/* Top Welcome Bar */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ sm: "center" }}
+        spacing={2}
+      >
         <Box>
-          <Typography variant="h4" fontWeight={700}>
-            Welcome back{user ? `, ${user.fullName.split(" ")[0]}` : ""}
+          <Typography variant="h4" fontWeight={700} color="#0F172A">
+            Overview Dashboard
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Everything below is live — nothing here is a stored notification, so it's never stale.
+            Welcome back, {user?.fullName}. Here is your live invoice processing activity.
           </Typography>
         </Box>
 
-        <Button
-          component={RouterLink}
-          to="/ai-assistant"
-          variant="contained"
-          startIcon={<AutoAwesomeIcon />}
-          sx={{ alignSelf: { xs: "flex-start", sm: "center" } }}
-        >
-          Open Finance Copilot
-        </Button>
+        <Stack direction="row" spacing={1.5}>
+          <Button
+            component={RouterLink}
+            to="/ai-assistant"
+            variant="outlined"
+            startIcon={<AutoAwesomeIcon />}
+            sx={{ borderColor: "#93C5FD", color: "#1D4ED8" }}
+          >
+            AI Assistant
+          </Button>
+          <Button
+            component={RouterLink}
+            to="/invoices"
+            variant="contained"
+            startIcon={<UploadFileIcon />}
+          >
+            Manage Invoices
+          </Button>
+        </Stack>
       </Stack>
 
-      {/* AI Quick Insights Banner */}
-      {quickInsightsQuery.data && quickInsightsQuery.data.length > 0 && (
-        <Paper variant="outlined" sx={{ p: 2, backgroundColor: "background.paper", borderColor: "divider" }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-            <AutoAwesomeIcon color="primary" fontSize="small" />
-            <Typography variant="subtitle2" fontWeight={700}>
-              AI Financial Briefing & Alerts
+      {/* KPI Metric Cards */}
+      <Grid container spacing={2.5}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: "#FFFFFF", p: 0.5 }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="caption" fontWeight={600} color="text.secondary">
+                    TOTAL INVOICES
+                  </Typography>
+                  <Typography variant="h4" fontWeight={700} sx={{ mt: 0.5, color: "#0F172A" }}>
+                    {data.totalInvoices}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "12px",
+                    bgcolor: "#EFF6FF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#2563EB",
+                  }}
+                >
+                  <ReceiptLongIcon />
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: "#FFFFFF", p: 0.5 }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="caption" fontWeight={600} color="text.secondary">
+                    TOTAL SPEND
+                  </Typography>
+                  <Typography variant="h5" fontWeight={700} sx={{ mt: 0.5, color: "#0F172A" }}>
+                    {formatCurrency(data.totalSpend)}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "12px",
+                    bgcolor: "#ECFDF5",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#059669",
+                  }}
+                >
+                  <AttachMoneyIcon />
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: "#FFFFFF", p: 0.5 }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="caption" fontWeight={600} color="text.secondary">
+                    PENDING REVIEW
+                  </Typography>
+                  <Typography variant="h4" fontWeight={700} sx={{ mt: 0.5, color: "#D97706" }}>
+                    {data.needsReviewCount}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "12px",
+                    bgcolor: "#FFFBEB",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#D97706",
+                  }}
+                >
+                  <PendingActionsIcon />
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: "#FFFFFF", p: 0.5 }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="caption" fontWeight={600} color="text.secondary">
+                    VERIFIED & APPROVED
+                  </Typography>
+                  <Typography variant="h4" fontWeight={700} sx={{ mt: 0.5, color: "#16A34A" }}>
+                    {data.verifiedCount + data.approvedCount}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "12px",
+                    bgcolor: "#F0FDF4",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#16A34A",
+                  }}
+                >
+                  <VerifiedIcon />
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Visual Analytics Charts */}
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: "14px", height: "100%" }}>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+              Spend by Top Vendors
             </Typography>
-          </Stack>
-          <Grid container spacing={2}>
-            {quickInsightsQuery.data.slice(0, 3).map((insight: QuickInsight, idx: number) => (
-              <Grid item xs={12} md={4} key={idx}>
-                <Card variant="outlined" sx={{ height: "100%" }}>
-                  <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                      <LightbulbOutlinedIcon
-                        fontSize="small"
-                        color={insight.severity === "CRITICAL" ? "error" : insight.severity === "WARNING" ? "warning" : "primary"}
+            {vendorChartData.length === 0 ? (
+              <Box sx={{ py: 6, textAlign: "center" }}>
+                <Typography variant="body2" color="text.secondary">
+                  No vendor data recorded yet.
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart data={vendorChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis dataKey="name" stroke="#64748B" fontSize={12} />
+                    <YAxis stroke="#64748B" fontSize={12} tickFormatter={(v) => `₹${v}`} />
+                    <Tooltip
+                      formatter={(val: number) => [formatCurrency(val), "Spend"]}
+                      contentStyle={{ borderRadius: "8px", border: "1px solid #E2E8F0" }}
+                    />
+                    <Bar dataKey="spend" fill="#3B82F6" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: "14px", height: "100%" }}>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+              Monthly Spend Trend
+            </Typography>
+            {monthlyChartData.length === 0 ? (
+              <Box sx={{ py: 6, textAlign: "center" }}>
+                <Typography variant="body2" color="text.secondary">
+                  No monthly invoice history yet.
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart data={monthlyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis dataKey="month" stroke="#64748B" fontSize={12} />
+                    <YAxis stroke="#64748B" fontSize={12} tickFormatter={(v) => `₹${v}`} />
+                    <Tooltip
+                      formatter={(val: number) => [formatCurrency(val), "Total"]}
+                      contentStyle={{ borderRadius: "8px", border: "1px solid #E2E8F0" }}
+                    />
+                    <Bar dataKey="spend" fill="#10B981" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Recent Invoices Table */}
+      <Paper variant="outlined" sx={{ borderRadius: "14px", overflow: "hidden" }}>
+        <Box sx={{ p: 2.5, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="subtitle1" fontWeight={700}>
+            Recent Invoices
+          </Typography>
+          <Button component={RouterLink} to="/invoices" size="small">
+            View All
+          </Button>
+        </Box>
+
+        <TableContainer>
+          <Table size="small">
+            <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Invoice #</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Vendor</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Date</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600, color: "#64748B" }}>
+                  Amount
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#64748B" }}>Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {data.recentInvoices?.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                    No invoices processed yet. Click &quot;Manage Invoices&quot; to upload your first invoice.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.recentInvoices?.map((inv) => (
+                  <TableRow
+                    key={inv.id}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => navigate(`/invoices/${inv.id}`)}
+                  >
+                    <TableCell sx={{ fontWeight: 600, color: "#1D4ED8" }}>
+                      {inv.invoiceNumber || "Untitled"}
+                    </TableCell>
+                    <TableCell>{inv.vendor?.name || "—"}</TableCell>
+                    <TableCell>{inv.invoiceDate || "—"}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      {formatCurrency(inv.totalAmount, inv.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={inv.status.replace("_", " ")}
+                        color={getStatusChipColor(inv.status)}
+                        sx={{ fontSize: "0.75rem", fontWeight: 600 }}
                       />
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        {insight.title}
-                      </Typography>
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary">
-                      {insight.summary}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Paper>
-      )}
-
-      {totalAttentionItems === 0 && (
-        <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>
-          You're all caught up — nothing needs your attention right now.
-        </Alert>
-      )}
-
-      <Stack spacing={2}>
-        <AttentionSection title="Pending your approval" emptyLabel="Nothing waiting on your approval." count={data.pendingMyApproval.length}>
-          <InvoiceAttentionTable invoices={data.pendingMyApproval} />
-        </AttentionSection>
-
-        <AttentionSection title="Needs your attention" emptyLabel="None of your submissions were rejected or disputed." count={data.needsMyAttention.length}>
-          <InvoiceAttentionTable invoices={data.needsMyAttention} />
-        </AttentionSection>
-
-        <AttentionSection title="Overdue invoices" emptyLabel="Nothing is overdue." count={data.overdueInvoices.length}>
-          <InvoiceAttentionTable invoices={data.overdueInvoices} />
-        </AttentionSection>
-
-        <AttentionSection title="Over-budget categories this month" emptyLabel="Every budget is within its cap." count={data.overBudgetCategories.length}>
-          <BudgetAttentionTable budgets={data.overBudgetCategories} />
-        </AttentionSection>
-      </Stack>
-
-      <Stack direction="row" spacing={1}>
-        <Button component={RouterLink} to="/invoices">View all invoices</Button>
-        <Button component={RouterLink} to="/analytics">View analytics</Button>
-        <Button component={RouterLink} to="/ai-assistant" startIcon={<AutoAwesomeIcon />}>Ask AI Copilot</Button>
-      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
     </Stack>
   );
 }

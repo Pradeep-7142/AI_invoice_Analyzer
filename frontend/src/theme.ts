@@ -4,27 +4,44 @@ export const theme = createTheme({
   palette: {
     mode: "light",
     primary: {
-      main: "#1E3A8A",
+      main: "#3B82F6",
+      light: "#60A5FA",
+      dark: "#1D4ED8",
+      contrastText: "#FFFFFF",
     },
     secondary: {
-      main: "#0EA5A4",
+      main: "#10B981",
+      light: "#34D399",
+      dark: "#059669",
+      contrastText: "#FFFFFF",
     },
     background: {
-      default: "#F4F6F8",
+      default: "#F8FAFC",
       paper: "#FFFFFF",
     },
+    text: {
+      primary: "#0F172A",
+      secondary: "#64748B",
+    },
     error: {
-      main: "#DC2626",
+      main: "#EF4444",
+      light: "#FEE2E2",
     },
     warning: {
-      main: "#D97706",
+      main: "#F59E0B",
+      light: "#FEF3C7",
     },
     success: {
-      main: "#16A34A",
+      main: "#10B981",
+      light: "#D1FAE5",
+    },
+    info: {
+      main: "#6366F1",
+      light: "#E0E7FF",
     },
   },
   shape: {
-    borderRadius: 10,
+    borderRadius: 12,
   },
   typography: {
     fontFamily: [
@@ -37,12 +54,54 @@ export const theme = createTheme({
       "Arial",
       "sans-serif",
     ].join(","),
+    h4: {
+      fontWeight: 700,
+      letterSpacing: "-0.02em",
+    },
+    h5: {
+      fontWeight: 600,
+      letterSpacing: "-0.01em",
+    },
+    h6: {
+      fontWeight: 600,
+    },
+    subtitle1: {
+      color: "#64748B",
+    },
+    button: {
+      textTransform: "none",
+      fontWeight: 600,
+    },
   },
   components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          boxShadow: "none",
+          "&:hover": {
+            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.25)",
+          },
+        },
+        containedPrimary: {
+          background: "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)",
+        },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.08)",
+          borderRadius: 14,
+          border: "1px solid #E2E8F0",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02)",
+          transition: "transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out",
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: "none",
         },
       },
     },
@@ -50,6 +109,12 @@ export const theme = createTheme({
       defaultProps: {
         color: "inherit",
         elevation: 0,
+      },
+      styleOverrides: {
+        root: {
+          borderBottom: "1px solid #E2E8F0",
+          backgroundColor: "#FFFFFF",
+        },
       },
     },
   },

@@ -1,6 +1,6 @@
 package com.invoiceiq.security;
 
-import com.invoiceiq.entity.OrgRole;
+import com.invoiceiq.entity.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -19,18 +19,12 @@ import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/**
- * Issues short-lived signed JWT access tokens and opaque, server-hashed
- * refresh tokens. Refresh tokens are intentionally NOT JWTs: we need a
- * server-side revocation list for logout/rotation-reuse detection, so
- * there's no benefit to them being self-describing.
- */
 @Service
 public class JwtService {
 
-    private static final String CLAIM_ORGANIZATION_ID = "org";
     private static final String CLAIM_ROLE = "role";
     private static final String CLAIM_EMAIL = "email";
+    private static final String CLAIM_FULL_NAME = "fullName";
 
     private final SecretKey signingKey;
     private final long accessTokenTtlMinutes;
@@ -47,13 +41,13 @@ public class JwtService {
         this.refreshTokenTtlDays = refreshTokenTtlDays;
     }
 
-    public String generateAccessToken(UUID userId, UUID organizationId, OrgRole role, String email) {
+    public String generateAccessToken(UUID userId, String email, String fullName, UserRole role) {
         Instant now = Instant.now();
         return Jwts.builder()
             .subject(userId.toString())
-            .claim(CLAIM_ORGANIZATION_ID, organizationId.toString())
             .claim(CLAIM_ROLE, role.name())
             .claim(CLAIM_EMAIL, email)
+            .claim(CLAIM_FULL_NAME, fullName)
             .issuedAt(Date.from(now))
             .expiration(Date.from(now.plus(accessTokenTtlMinutes, ChronoUnit.MINUTES)))
             .signWith(signingKey)
@@ -70,9 +64,9 @@ public class JwtService {
 
             return new AuthenticatedPrincipal(
                 UUID.fromString(claims.getSubject()),
-                UUID.fromString(claims.get(CLAIM_ORGANIZATION_ID, String.class)),
                 claims.get(CLAIM_EMAIL, String.class),
-                OrgRole.valueOf(claims.get(CLAIM_ROLE, String.class))
+                claims.get(CLAIM_FULL_NAME, String.class),
+                UserRole.valueOf(claims.get(CLAIM_ROLE, String.class))
             );
         } catch (ExpiredJwtException e) {
             throw new InvalidTokenException("Access token has expired.");

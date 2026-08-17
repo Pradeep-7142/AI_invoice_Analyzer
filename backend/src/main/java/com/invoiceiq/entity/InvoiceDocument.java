@@ -9,7 +9,13 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "invoice_documents")
 public class InvoiceDocument extends BaseEntity {
@@ -54,11 +60,8 @@ public class InvoiceDocument extends BaseEntity {
     @Column(name = "rejection_reason", length = 500)
     private String rejectionReason;
 
-    protected InvoiceDocument() {
-    }
-
     public InvoiceDocument(Invoice invoice, String storageKey, String originalFilename, String contentType,
-                            long fileSizeBytes, String checksumSha256, UserAccount uploadedBy) {
+                           long fileSizeBytes, String checksumSha256, UserAccount uploadedBy) {
         this.invoice = invoice;
         this.storageKey = storageKey;
         this.originalFilename = originalFilename;
@@ -66,73 +69,6 @@ public class InvoiceDocument extends BaseEntity {
         this.fileSizeBytes = fileSizeBytes;
         this.checksumSha256 = checksumSha256;
         this.uploadedBy = uploadedBy;
-    }
-
-    public Invoice getInvoice() {
-        return invoice;
-    }
-
-    public String getStorageKey() {
-        return storageKey;
-    }
-
-    public String getOriginalFilename() {
-        return originalFilename;
-    }
-
-    public String getContentType() {
-        return contentType;
-    }
-
-    public long getFileSizeBytes() {
-        return fileSizeBytes;
-    }
-
-    public String getChecksumSha256() {
-        return checksumSha256;
-    }
-
-    public DocumentProcessingStatus getProcessingStatus() {
-        return processingStatus;
-    }
-
-    public void setProcessingStatus(DocumentProcessingStatus processingStatus) {
-        this.processingStatus = processingStatus;
-    }
-
-    public UserAccount getUploadedBy() {
-        return uploadedBy;
-    }
-
-    public String getExtractedText() {
-        return extractedText;
-    }
-
-    public void setExtractedText(String extractedText) {
-        this.extractedText = extractedText;
-    }
-
-    public BigDecimal getOcrConfidence() {
-        return ocrConfidence;
-    }
-
-    public void setOcrConfidence(BigDecimal ocrConfidence) {
-        this.ocrConfidence = ocrConfidence;
-    }
-
-    public DocumentType getDocumentType() {
-        return documentType;
-    }
-
-    public void setDocumentType(DocumentType documentType) {
-        this.documentType = documentType;
-    }
-
-    public String getRejectionReason() {
-        return rejectionReason;
-    }
-
-    public void setRejectionReason(String rejectionReason) {
-        this.rejectionReason = rejectionReason;
+        this.processingStatus = DocumentProcessingStatus.UPLOADED;
     }
 }

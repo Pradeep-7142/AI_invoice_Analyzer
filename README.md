@@ -1,49 +1,35 @@
-# ⚡ InvoiceIQ — AI-Powered Invoice & Expense Intelligence Platform
+# ⚡ InvoiceIQ — AI-Powered Invoice Management & Intelligence Platform
 
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot 3.3](https://img.shields.io/badge/Spring%20Boot-3.3-brightgreen.svg?logo=springboot)](https://spring.io/projects/spring-boot)
 [![React 18](https://img.shields.io/badge/React-18-blue.svg?logo=react)](https://react.dev/)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-336791.svg?logo=postgresql)](https://www.postgresql.org/)
-[![Redis 7](https://img.shields.io/badge/Redis-7-red.svg?logo=redis)](https://redis.io/)
-[![Groq Llama 3.1](https://img.shields.io/badge/AI%20Engine-Groq%20Llama%203.1-blueviolet.svg)](https://groq.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**InvoiceIQ** is an enterprise-grade, multi-tenant B2B SaaS platform that automates invoice processing, deterministic validation, role-based approval workflows, and financial analytics. It combines **LLM-powered document intelligence** (Groq / Gemini / OpenAI) with **deterministic accounting rules**, **duplicate/anomaly detection**, and a **grounded conversational Finance Copilot**.
+**InvoiceIQ** is a full-stack web application designed for automated invoice management, OCR data extraction, deterministic math verification, and AI-driven conversational Q&A. It combines **Spring Boot 3.3 + Spring Security + PostgreSQL** on the backend with a responsive **React 18 + TypeScript + Material UI** frontend.
 
 ---
 
-## 🌟 Key Features & Capabilities
+## 🌟 Key Features
 
-### 1. 🤖 Hybrid AI Document Intelligence Pipeline
-- **Smart Extraction:** Ingests PDFs, scanned images, and photos (PNG, JPG, WEBP). Extracts vendor names, invoice numbers, dates, subtotal, taxes, GSTIN, and line items.
-- **Explainable Confidence Scores:** Provides per-field certainty metrics ($0.0 \to 1.0$) so human reviewers can immediately verify low-confidence fields.
-- **Multi-Engine AI Support:** Supports **Groq (`llama-3.1-8b-instant`)**, **Google Gemini**, **OpenAI**, and an offline **Deterministic Heuristic Engine** with zero external dependencies.
-- **Graceful Fallback & Zero Crashes:** Corrupted files or non-invoice documents (e.g. bank statements) are gracefully marked `REJECTED` with human-readable reasons, preserving full audit history.
+### 1. 🤖 AI Document Extraction & OCR Pipeline
+- **Automated Ingestion:** Ingests PDF and image invoices (PNG, JPG, WEBP). Extracts vendor details, invoice numbers, billing dates, line items, and monetary breakdowns.
+- **Confidence Scoring:** Generates per-field confidence scores ($0.0 \to 1.0$) to highlight extracted fields requiring human verification.
+- **Pluggable LLM Providers:** Supports **Groq (`llama-3.1-8b-instant`)**, **Google Gemini**, **OpenAI**, and an offline deterministic heuristic fallback engine.
 
-### 2. 🛡️ Deterministic Validation & Anomaly Risk Scoring
-- **10-Rule Math Engine:** Evaluates reconciliation ($\text{Subtotal} + \text{Tax} = \text{Total}$), non-negative amounts, GSTIN patterns, and valid date sequences.
-- **Duplicate Detection:** Computes duplicate likelihood across invoice numbers, amounts, and dates, flagging suspect invoices without silent data loss.
-- **Statistical Anomaly Detection:** Calculates z-scores against vendor-specific historical averages to flag irregular price spikes.
-- **Explainable Risk Score (0–100):** Every point added to the risk score links to an exact audit trail (`riskReasons`).
+### 2. 🛡️ Deterministic Validation & Duplicate Detection
+- **Accounting Validation Engine:** Evaluates math consistency ($\text{Subtotal} + \text{Tax} - \text{Discount} = \text{Total}$), non-negative values, and required invoice metadata.
+- **Duplicate Prevention:** Detects potential duplicate submissions across invoice numbers, vendors, dates, and amounts.
 
-### 3. 👥 Multi-Tenant Role-Based Access Control (RBAC) & Governance
-- **5 Granular Roles:** `ORGANIZATION_ADMIN`, `FINANCE_MANAGER`, `ACCOUNTANT`, `EMPLOYEE`, and `VIEWER`.
-- **Tenant Isolation:** Enforced server-side via authenticated security context (`CurrentUser`) extracted from validated JWTs — no tenant ID is ever accepted in request paths.
-- **Separation of Duties:** Submitters are strictly blocked from approving their own invoices, regardless of their administrative rank.
-- **Dynamic Approval Thresholds:** Configurable manager and admin approval limits that route invoices automatically based on monetary value.
+### 3. 💬 Interactive AI Invoice Assistant
+- **Conversational Q&A:** Query invoices using natural language (e.g. *"Summarize line items"*, *"Is tax calculated accurately?"*, *"What is the payment due date?"*).
+- **Grounded Responses:** Answers are dynamically grounded in the specific invoice record.
 
-### 4. 💬 Grounded AI Finance Copilot & Assistant
-- **Conversational Intelligence:** Ask natural language questions like *"What is our total spend on Cloud vendors?"* or *"Show invoices pending approval above ₹50,000"*.
-- **100% Grounded Context:** Answers are synthesized directly from verified database records with zero hallucinated figures.
-- **Proactive Cost-Saving Recommendations:** Automatically surfaces recurring pacing anomalies, unbudgeted overruns, and vendor concentration risks.
-
-### 5. 🔍 Natural Language Search & Filtering
-- Translates plain English search prompts (e.g. *"Show software subscriptions from last month over 10000"*) into structured database query criteria.
-
-### 6. 💳 Payment Lifecycle & Cash Flow Forecasting
-- **Dynamic Status Derivation:** Tracks payment tranches ($\text{SCHEDULED} \to \text{PARTIALLY\_PAID} \to \text{PAID}$) derived from actual verified transactions.
-- **Committed Cash-Flow Forecast:** Projects weekly cash obligations based on active scheduled payments and outstanding invoice maturities.
-- **Category Budgets:** Enforces recurring monthly department limits with real-time utilization pacing.
+### 4. 👥 Role-Based Access Control (RBAC) & Authentication
+- **Secure JWT Auth:** Stateless token-based authentication with BCrypt password hashing.
+- **Roles:**
+  - `ROLE_ADMIN`: Full access to upload, verify, approve, reject, archive invoices, manage vendors, and control user roles.
+  - `ROLE_EMPLOYEE`: Can upload invoices, view data, and interact with the AI assistant.
 
 ---
 
@@ -54,28 +40,27 @@
 │                           React 18 + Vite SPA                           │
 │     (Material UI · TanStack Query · Recharts · React Hook Form · Zod)    │
 └────────────────────────────────────┬────────────────────────────────────┘
-                                     │  JWT (Bearer) + HTTPS
+                                     │  JWT (Bearer) + REST API
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                     Spring Boot 3.3 REST API (Java 21)                  │
 ├──────────────────────────────────┬──────────────────────────────────────┤
-│  Security & Tenancy              │  Processing & Intelligence           │
+│  Security & Auth                 │  Processing & Intelligence           │
 │  - JwtAuthenticationFilter       │  - DocumentIntelligenceService       │
-│  - Opaque Refresh Token Hash     │  - LlmExtractionService (Groq/Gemini)│
-│  - @PreAuthorize Role Guards     │  - Tesseract OCR / PDFBox Parser     │
+│  - BCrypt Password Encoder       │  - LlmExtractionService (Groq/Gemini)│
+│  - @PreAuthorize Role Guards     │  - Apache PDFBox / Tesseract OCR     │
 ├──────────────────────────────────┼──────────────────────────────────────┤
-│  Business & Finance Engine       │  Analytics & Copilot                 │
-│  - InvoiceValidationService (10) │  - FinanceCopilotService             │
-│  - RiskScoring & Duplicates      │  - CostSavingEngineService           │
-│  - ApprovalPolicy & Workflow     │  - CashFlowForecastService           │
-│  - PaymentLifecycle Engine       │  - NaturalLanguageSearchService      │
-└────────────────┬─────────────────┴──────────────────┬───────────────────┘
-                 │                                     │
-                 ▼                                     ▼
-┌─────────────────────────────────┐   ┌───────────────────────────────────┐
-│        PostgreSQL 16 DB         │   │            Redis 7                │
-│    (Flyway Migrations, JPA)     │   │   (Job Status, Cache Invalidation)│
-└─────────────────────────────────┘   └───────────────────────────────────┘
+│  Invoice Processing Engine       │  AI Assistant & Q&A                  │
+│  - InvoiceValidationService      │  - AiAssistantController             │
+│  - DuplicateDetectionService     │  - Context-Grounded Prompt Engine    │
+│  - Invoice Lifecycle Engine      │                                      │
+└──────────────────────────────────┬──────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           PostgreSQL 16 DB                              │
+│                    (Flyway Migrations, Spring Data JPA)                 │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -86,18 +71,14 @@
 | :--- | :--- | :--- |
 | **Backend** | Java 21, Spring Boot 3.3 | Spring Security, Spring Data JPA, Flyway, MapStruct, SpringDoc OpenAPI |
 | **Frontend** | React 18, TypeScript, Vite | Material UI v5, TanStack Query v5, Recharts, React Router v6 |
-| **Database** | PostgreSQL 16 | ACID transactions, tenant indexing, Flyway versioned migrations |
-| **Cache / Queue** | Redis 7 | Background async status tracking and query caching |
-| **AI / LLM** | Groq Llama 3.1 / Gemini / OpenAI | Structured JSON extraction, system prompts, grounded Copilot reasoning |
-| **OCR & Docs** | Apache PDFBox, Apache Tika, Tesseract | MIME validation, selectable text extraction, scanned image OCR |
-| **Infra & DevOps** | Docker, Docker Compose | Multi-container automated orchestration and isolated networking |
+| **Database** | PostgreSQL 16 | ACID transactions, relational indexing, Flyway versioned migrations |
+| **AI / LLM** | Groq Llama 3.1 / Gemini / OpenAI | Structured JSON extraction, confidence metrics, invoice Q&A |
+| **OCR & Docs** | Apache PDFBox, Apache Tika | MIME validation, selectable text extraction, file storage |
+| **DevOps** | Docker, Docker Compose | Multi-container automated orchestration |
 
 ---
 
-## 🚀 Quick Start (Up & Running in 60 Seconds)
-
-### Prerequisites
-- [Docker & Docker Compose](https://docs.docker.com/get-docker/)
+## 🚀 Quick Start (Docker Compose)
 
 ### 1. Clone & Configure Environment
 ```bash
@@ -108,71 +89,49 @@ cd AI_invoice_Analyzer
 cp .env.example .env
 ```
 
-### 2. Configure AI Provider (Optional)
-Open `.env` in your text editor:
-* **Option A (Groq - Recommended, Free & Ultra-Fast):**
-  ```properties
-  AI_PROVIDER=custom
-  AI_BASE_URL=https://api.groq.com/openai/v1
-  AI_MODEL=llama-3.1-8b-instant
-  AI_API_KEY=gsk_your_groq_api_key_here
-  ```
-* **Option B (Offline Heuristic Mode - Zero API Keys Needed):**
-  ```properties
-  AI_PROVIDER=mock
-  ```
-
-### 3. Launch the Stack
+### 2. Launch Stack
 ```bash
 docker compose up -d --build
 ```
 
-### 4. Access the Application
-* 🌐 **Frontend Web Portal:** [http://localhost:5173](http://localhost:5173)
-* 📖 **Interactive Swagger API Docs:** [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-* 🩺 **Backend Health Endpoint:** [http://localhost:8080/api/health](http://localhost:8080/api/health)
+### 3. Access Application
+- 🌐 **Frontend UI:** [http://localhost:5173](http://localhost:5173)
+- 📖 **Swagger API Docs:** [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- 🩺 **Backend Health Check:** [http://localhost:8080/api/health](http://localhost:8080/api/health)
+
+### 4. Demo Login Credentials
+- **Admin:** `admin@invoiceiq.com` / `Password123!`
+- **Employee:** `employee@invoiceiq.com` / `Password123!`
 
 ---
 
-### Run Backend Unit & Integration Tests:
-```bash
-cd backend
-mvn test
+## 📁 Repository Structure
+
 ```
-*Note: Backend integration tests utilize an embedded real PostgreSQL binary (`io.zonky.test:embedded-postgres`), executing Flyway migrations and true transactional queries without requiring an external database.*
-
----
-
-## 🔐 Role-Based Access Control (RBAC) Matrix
-
-| Feature / Action | Org Admin | Finance Manager | Accountant | Employee | Viewer |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Upload Invoices** | ✅ | ✅ | ✅ | ✅ (Own Only) | ❌ |
-| **Verify Extracted Fields** | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Approve Invoices (< Threshold)** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Approve Invoices (High Value)** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Schedule & Settle Payments** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Manage Department Budgets** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **View Executive Analytics** | ✅ | ✅ | ✅ | ❌ (403) | ✅ |
-| **Configure Org Thresholds** | ✅ | ❌ (403) | ❌ (403) | ❌ (403) | ❌ (403) |
-| **AI Copilot & Search** | ✅ | ✅ | ✅ | ✅ (Scoped) | ✅ |
-
----
-
-## ⚙️ Environment Configuration Reference
-
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `JWT_SECRET` | 256-bit secret key for signing JWT tokens | `dev-secret-key-32-bytes-long...` |
-| `AI_PROVIDER` | Active AI provider (`custom`, `gemini`, `openai`, `mock`) | `mock` |
-| `AI_BASE_URL` | API Base URL for LLM requests | `https://api.groq.com/openai/v1` |
-| `AI_MODEL` | LLM model identifier | `llama-3.1-8b-instant` |
-| `AI_API_KEY` | Secret API key for the chosen LLM provider | - |
-| `STORAGE_PATH` | Local disk root directory for stored invoice files | `./uploads` |
-| `MAX_FILE_SIZE` | Maximum allowed file upload size | `10MB` |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed web origins | `http://localhost:5173` |
+├── backend/
+│   ├── src/main/java/com/invoiceiq/
+│   │   ├── ai/            # LLM clients, extraction prompts & assistant service
+│   │   ├── auth/          # Spring Security, JWT filters & auth controller
+│   │   ├── config/        # WebMvc, CORS, Swagger & async configs
+│   │   ├── dashboard/     # Aggregation metrics & summary API
+│   │   ├── invoices/      # Invoices controller, entity, service & storage
+│   │   ├── risk/          # Duplicate invoice detection engine
+│   │   ├── user/          # User accounts & role management
+│   │   ├── validation/    # Deterministic accounting rule engine
+│   │   └── vendor/        # Vendor directory & management
+│   └── src/main/resources/
+│       └── db/migration/  # Flyway schema migrations
+├── frontend/
+│   ├── src/
+│   │   ├── api/           # REST API client services
+│   │   ├── features/auth/ # AuthContext & login/register forms
+│   │   ├── layouts/       # App navigation & header layout
+│   │   ├── pages/         # Dashboard, Invoices, Detail, Vendors, Users, AI Assistant
+│   │   └── types/         # TypeScript interfaces & models
+└── docker-compose.yml
+```
 
 ---
 
 ## 📄 License
-This project is licensed under the **MIT License** — feel free to use and adapt it for your personal projects or portfolio.
+Distributed under the **MIT License**.

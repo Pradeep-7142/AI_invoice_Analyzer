@@ -44,13 +44,12 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected ObjectMapper objectMapper;
 
-    protected String registerAndGetAccessToken(String orgName, String fullName, String email, String password) throws Exception {
-        return extract(register(orgName, fullName, email, password), "$.accessToken");
+    protected String registerAndGetAccessToken(String fullName, String email, String password) throws Exception {
+        return extract(register(fullName, email, password), "$.accessToken");
     }
 
-    protected MvcResult register(String orgName, String fullName, String email, String password) throws Exception {
+    protected MvcResult register(String fullName, String email, String password) throws Exception {
         Map<String, String> body = Map.of(
-            "organizationName", orgName,
             "fullName", fullName,
             "email", email,
             "password", password
@@ -73,16 +72,6 @@ public abstract class AbstractIntegrationTest {
 
     protected String extract(MvcResult result, String path) throws Exception {
         return JsonPath.read(result.getResponse().getContentAsString(), path).toString();
-    }
-
-    protected String addMemberAndGetAccessToken(String adminToken, String fullName, String email, String password, String role) throws Exception {
-        mockMvc.perform(post("/api/organizations/members")
-                .header("Authorization", "Bearer " + adminToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of(
-                    "fullName", fullName, "email", email, "password", password, "role", role))))
-            .andExpect(status().isCreated());
-        return loginAndGetAccessToken(email, password);
     }
 
     protected MvcResult uploadInvoice(String token, String filename, byte[] content) throws Exception {

@@ -7,7 +7,13 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "invoice_line_items")
 public class InvoiceLineItem extends BaseEntity {
@@ -37,50 +43,15 @@ public class InvoiceLineItem extends BaseEntity {
     @Column(name = "total_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
-    protected InvoiceLineItem() {
-    }
-
     public InvoiceLineItem(Invoice invoice, int lineOrder, String description, BigDecimal quantity,
-                            BigDecimal unitPrice, BigDecimal taxAmount, BigDecimal discountAmount, BigDecimal totalAmount) {
+                           BigDecimal unitPrice, BigDecimal taxAmount, BigDecimal discountAmount, BigDecimal totalAmount) {
         this.invoice = invoice;
         this.lineOrder = lineOrder;
         this.description = description;
-        this.quantity = quantity;
-        this.unitPrice = unitPrice;
-        this.taxAmount = taxAmount;
-        this.discountAmount = discountAmount;
-        this.totalAmount = totalAmount;
-    }
-
-    public Invoice getInvoice() {
-        return invoice;
-    }
-
-    public int getLineOrder() {
-        return lineOrder;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public BigDecimal getQuantity() {
-        return quantity;
-    }
-
-    public BigDecimal getUnitPrice() {
-        return unitPrice;
-    }
-
-    public BigDecimal getTaxAmount() {
-        return taxAmount;
-    }
-
-    public BigDecimal getDiscountAmount() {
-        return discountAmount;
-    }
-
-    public BigDecimal getTotalAmount() {
-        return totalAmount;
+        this.quantity = quantity != null ? quantity : BigDecimal.ONE;
+        this.unitPrice = unitPrice != null ? unitPrice : BigDecimal.ZERO;
+        this.taxAmount = taxAmount != null ? taxAmount : BigDecimal.ZERO;
+        this.discountAmount = discountAmount != null ? discountAmount : BigDecimal.ZERO;
+        this.totalAmount = totalAmount != null ? totalAmount : BigDecimal.ZERO;
     }
 }

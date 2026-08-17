@@ -7,7 +7,10 @@ import {
   Autocomplete,
   Box,
   Button,
+  Card,
+  CardContent,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,7 +18,6 @@ import {
   Divider,
   Grid,
   IconButton,
-  MenuItem,
   Paper,
   Skeleton,
   Stack,
@@ -32,49 +34,30 @@ import AddIcon from "@mui/icons-material/Add";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
-import EventRepeatOutlinedIcon from "@mui/icons-material/EventRepeatOutlined";
-import { Link as RouterLink } from "react-router-dom";
-import { invoicesApi, type InvoiceUpdatePayload, type SchedulePaymentPayload } from "@/api/invoicesApi";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import SendIcon from "@mui/icons-material/Send";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import VerifiedIcon from "@mui/icons-material/Verified";
+import CheckIcon from "@mui/icons-material/Check";
+import BlockIcon from "@mui/icons-material/Block";
+import ArchiveIcon from "@mui/icons-material/Archive";
+import { invoicesApi, type InvoiceUpdatePayload } from "@/api/invoicesApi";
 import { vendorsApi } from "@/api/vendorsApi";
 import { useAuth } from "@/features/auth/AuthContext";
 import { apiErrorMessage } from "@/utils/apiErrorMessage";
-import type { ValidationStatus } from "@/types/invoice";
-import type { PaymentMethod, PaymentStatus } from "@/types/finance";
+import { downloadBlob } from "@/utils/downloadBlob";
+import type { InvoiceStatus, ValidationStatus, Vendor } from "@/types/invoice";
 
-const CAN_MANAGE_INVOICES = new Set(["ORGANIZATION_ADMIN", "FINANCE_MANAGER", "ACCOUNTANT"]);
-const CAN_DECIDE_APPROVALS = new Set(["ORGANIZATION_ADMIN", "FINANCE_MANAGER"]);
-const PAYABLE_STATUSES = new Set(["APPROVED", "PAYMENT_SCHEDULED", "PARTIALLY_PAID", "OVERDUE"]);
-const DISPUTABLE_STATUSES = new Set([
-  "VERIFIED", "PENDING_APPROVAL", "APPROVED", "PAYMENT_SCHEDULED", "PARTIALLY_PAID", "OVERDUE", "PAID",
-]);
-const PAYMENT_METHODS: PaymentMethod[] = ["BANK_TRANSFER", "CARD", "CHEQUE", "CASH", "OTHER"];
-
-const STATUS_COLOR: Record<string, "default" | "warning" | "success" | "info" | "error"> = {
+const STATUS_COLOR: Record<InvoiceStatus, "default" | "warning" | "success" | "info" | "error"> = {
+  UPLOADED: "default",
+  PROCESSING: "info",
   NEEDS_REVIEW: "warning",
   VERIFIED: "success",
-  PENDING_APPROVAL: "warning",
-  APPROVED: "info",
-  PAYMENT_SCHEDULED: "info",
-  PARTIALLY_PAID: "warning",
-  PAID: "success",
-  OVERDUE: "error",
-  DISPUTED: "error",
+  APPROVED: "success",
+  REJECTED: "error",
   ARCHIVED: "default",
 };
-
-const PAYMENT_STATUS_COLOR: Record<PaymentStatus, "default" | "warning" | "success" | "error"> = {
-  SCHEDULED: "warning",
-  COMPLETED: "success",
-  FAILED: "error",
-  CANCELLED: "default",
-};
-
-function riskColor(score: number): "success" | "warning" | "error" {
-  if (score >= 50) return "error";
-  if (score >= 20) return "warning";
-  return "success";
-}
 
 const VALIDATION_ICON: Record<ValidationStatus, JSX.Element> = {
   PASS: <CheckCircleOutlineIcon fontSize="small" color="success" />,
@@ -82,15 +65,13 @@ const VALIDATION_ICON: Record<ValidationStatus, JSX.Element> = {
   ERROR: <ErrorOutlineIcon fontSize="small" color="error" />,
 };
 
-// Matches the backend default (invoiceiq.ai.confidence-threshold) — not
-// exposed via API today, so kept in sync by hand.
-const CONFIDENCE_THRESHOLD = 0.75;
-
-function confidenceHelperText(fieldConfidence: Record<string, number> | null | undefined, field: string): string | undefined {
+function confidenceHelperText(fieldConfidence: Record<string, number> | null | undefined, field: string) {
   const confidence = fieldConfidence?.[field];
   if (confidence === undefined) return undefined;
   const percent = Math.round(confidence * 100);
-  return confidence < CONFIDENCE_THRESHOLD ? `⚠ AI extracted this with ${percent}% confidence — please verify` : `AI extracted this with ${percent}% confidence`;
+  return confidence < 0.75
+    ? `⚠ AI extracted with ${percent}% confidence — verify`
+    : `AI extracted (${percent}% confidence)`;
 }
 
 interface FormValues {
@@ -104,816 +85,862 @@ interface FormValues {
   discountAmount: string;
   totalAmount: string;
   notes: string;
-  lineItems: { description: string; quantity: string; unitPrice: string; taxAmount: string; discountAmount: string; totalAmount: string }[];
-}
-
-function toFormNumber(value: number | null | undefined): string {
-  return value === null || value === undefined ? "" : String(value);
-}
-
-function toApiNumber(value: string): number | null {
-  return value.trim() === "" ? null : Number(value);
-}
-
-function DocumentViewer({ invoiceId }: { invoiceId: string }) {
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [contentType, setContentType] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let currentUrl: string | null = null;
-    invoicesApi
-      .downloadDocument(invoiceId)
-      .then((blob) => {
-        currentUrl = URL.createObjectURL(blob);
-        setContentType(blob.type);
-        setObjectUrl(currentUrl);
-      })
-      .catch((err) => setError(apiErrorMessage(err, "Unable to load the original document.")));
-    return () => {
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
-    };
-  }, [invoiceId]);
-
-  if (error) return <Alert severity="error">{error}</Alert>;
-  if (!objectUrl) return <Skeleton variant="rectangular" height={500} />;
-
-  return contentType.startsWith("image/") ? (
-    <Box component="img" src={objectUrl} alt="Invoice document" sx={{ width: "100%", borderRadius: 1 }} />
-  ) : (
-    <Box component="iframe" src={objectUrl} title="Invoice document" sx={{ width: "100%", height: 600, border: "none" }} />
-  );
+  lineItems: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    taxAmount: number;
+    discountAmount: number;
+    totalAmount: number;
+  }[];
 }
 
 export function InvoiceDetailPage() {
-  const { invoiceId } = useParams<{ invoiceId: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { role, user } = useAuth();
-  const canManage = role !== null && CAN_MANAGE_INVOICES.has(role);
-  const canDecideApprovals = role !== null && CAN_DECIDE_APPROVALS.has(role);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const invoiceQuery = useQuery({
-    queryKey: ["invoice", invoiceId],
-    queryFn: () => invoicesApi.get(invoiceId!),
-    enabled: !!invoiceId,
-  });
-
-  const vendorsQuery = useQuery({ queryKey: ["vendors", ""], queryFn: () => vendorsApi.list() });
-
-  const { register, control, handleSubmit, reset, watch, setValue } = useForm<FormValues>({
-    defaultValues: { lineItems: [] },
-  });
-  const { fields, append, remove } = useFieldArray({ control, name: "lineItems" });
-
-  useEffect(() => {
-    const invoice = invoiceQuery.data;
-    if (!invoice) return;
-    reset({
-      vendorId: invoice.vendor?.id ?? null,
-      invoiceNumber: invoice.invoiceNumber ?? "",
-      invoiceDate: invoice.invoiceDate ?? "",
-      dueDate: invoice.dueDate ?? "",
-      currency: invoice.currency,
-      subtotalAmount: toFormNumber(invoice.subtotalAmount),
-      taxAmount: toFormNumber(invoice.taxAmount),
-      discountAmount: toFormNumber(invoice.discountAmount),
-      totalAmount: toFormNumber(invoice.totalAmount),
-      notes: invoice.notes ?? "",
-      lineItems: invoice.lineItems.map((li) => ({
-        description: li.description,
-        quantity: String(li.quantity),
-        unitPrice: String(li.unitPrice),
-        taxAmount: String(li.taxAmount),
-        discountAmount: String(li.discountAmount),
-        totalAmount: String(li.totalAmount),
-      })),
-    });
-  }, [invoiceQuery.data, reset]);
-
-  const saveMutation = useMutation({
-    mutationFn: (values: FormValues) => {
-      const payload: InvoiceUpdatePayload = {
-        vendorId: values.vendorId,
-        invoiceNumber: values.invoiceNumber || null,
-        invoiceDate: values.invoiceDate || null,
-        dueDate: values.dueDate || null,
-        currency: values.currency || "INR",
-        subtotalAmount: toApiNumber(values.subtotalAmount),
-        taxAmount: toApiNumber(values.taxAmount),
-        discountAmount: toApiNumber(values.discountAmount),
-        totalAmount: toApiNumber(values.totalAmount),
-        notes: values.notes || null,
-        lineItems: values.lineItems.map((li) => ({
-          description: li.description,
-          quantity: Number(li.quantity),
-          unitPrice: Number(li.unitPrice),
-          taxAmount: toApiNumber(li.taxAmount) ?? 0,
-          discountAmount: toApiNumber(li.discountAmount) ?? 0,
-          totalAmount: Number(li.totalAmount),
-        })),
-      };
-      return invoicesApi.update(invoiceId!, payload);
-    },
-    onSuccess: (invoice) => {
-      queryClient.setQueryData(["invoice", invoiceId], invoice);
-      setActionError(null);
-    },
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
-
-  const verifyMutation = useMutation({
-    mutationFn: () => invoicesApi.verify(invoiceId!),
-    onSuccess: (invoice) => {
-      queryClient.setQueryData(["invoice", invoiceId], invoice);
-      setActionError(null);
-    },
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
-
-  const archiveMutation = useMutation({
-    mutationFn: () => invoicesApi.archive(invoiceId!),
-    onSuccess: (invoice) => {
-      queryClient.setQueryData(["invoice", invoiceId], invoice);
-      setActionError(null);
-    },
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
-
-  function onActionSuccess(invoice: NonNullable<typeof invoiceQuery.data>) {
-    queryClient.setQueryData(["invoice", invoiceId], invoice);
-    setActionError(null);
-  }
-
-  const submitForApprovalMutation = useMutation({
-    mutationFn: () => invoicesApi.submitForApproval(invoiceId!),
-    onSuccess: onActionSuccess,
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: () => invoicesApi.approve(invoiceId!),
-    onSuccess: onActionSuccess,
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
+  const { isAdmin } = useAuth();
 
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // AI Q&A State
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiConversation, setAiConversation] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
+  const [isAskingAi, setIsAskingAi] = useState(false);
+
+  const invoiceQuery = useQuery({
+    queryKey: ["invoice", id],
+    queryFn: () => invoicesApi.get(id!),
+    enabled: !!id,
+  });
+
+  const vendorsQuery = useQuery({
+    queryKey: ["vendors"],
+    queryFn: () => vendorsApi.list(),
+  });
+
+  const { register, control, handleSubmit, reset, watch, setValue } = useForm<FormValues>({
+    defaultValues: {
+      vendorId: null,
+      invoiceNumber: "",
+      invoiceDate: "",
+      dueDate: "",
+      currency: "INR",
+      subtotalAmount: "",
+      taxAmount: "",
+      discountAmount: "",
+      totalAmount: "",
+      notes: "",
+      lineItems: [],
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "lineItems",
+  });
+
+  useEffect(() => {
+    if (invoiceQuery.data) {
+      const inv = invoiceQuery.data;
+      reset({
+        vendorId: inv.vendor?.id ?? null,
+        invoiceNumber: inv.invoiceNumber ?? "",
+        invoiceDate: inv.invoiceDate ?? "",
+        dueDate: inv.dueDate ?? "",
+        currency: inv.currency ?? "INR",
+        subtotalAmount: inv.subtotalAmount !== null ? String(inv.subtotalAmount) : "",
+        taxAmount: inv.taxAmount !== null ? String(inv.taxAmount) : "",
+        discountAmount: inv.discountAmount !== null ? String(inv.discountAmount) : "",
+        totalAmount: inv.totalAmount !== null ? String(inv.totalAmount) : "",
+        notes: inv.notes ?? "",
+        lineItems: (inv.lineItems ?? []).map((li) => ({
+          description: li.description,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice,
+          taxAmount: li.taxAmount,
+          discountAmount: li.discountAmount,
+          totalAmount: li.totalAmount,
+        })),
+      });
+    }
+  }, [invoiceQuery.data, reset]);
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: InvoiceUpdatePayload) => invoicesApi.update(id!, payload),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["invoice", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      setSuccessMessage("Invoice saved successfully.");
+      setActionError(null);
+    },
+    onError: (err) => setActionError(apiErrorMessage(err)),
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: () => invoicesApi.verify(id!),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["invoice", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      setSuccessMessage("Invoice marked as VERIFIED.");
+      setActionError(null);
+    },
+    onError: (err) => setActionError(apiErrorMessage(err)),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: () => invoicesApi.approve(id!),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["invoice", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      setSuccessMessage("Invoice APPROVED.");
+      setActionError(null);
+    },
+    onError: (err) => setActionError(apiErrorMessage(err)),
+  });
+
   const rejectMutation = useMutation({
-    mutationFn: (reason: string) => invoicesApi.reject(invoiceId!, reason),
-    onSuccess: (invoice) => {
-      onActionSuccess(invoice);
+    mutationFn: (reason: string) => invoicesApi.reject(id!, reason),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["invoice", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setRejectDialogOpen(false);
       setRejectReason("");
+      setSuccessMessage("Invoice REJECTED.");
+      setActionError(null);
     },
-    onError: (error) => setActionError(apiErrorMessage(error)),
+    onError: (err) => setActionError(apiErrorMessage(err)),
   });
 
-  const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
-  const [disputeReasonInput, setDisputeReasonInput] = useState("");
-  const disputeMutation = useMutation({
-    mutationFn: (reason: string) => invoicesApi.dispute(invoiceId!, reason),
-    onSuccess: (invoice) => {
-      onActionSuccess(invoice);
-      setDisputeDialogOpen(false);
-      setDisputeReasonInput("");
+  const archiveMutation = useMutation({
+    mutationFn: () => invoicesApi.archive(id!),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["invoice", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      setSuccessMessage("Invoice ARCHIVED.");
+      setActionError(null);
     },
-    onError: (error) => setActionError(apiErrorMessage(error)),
+    onError: (err) => setActionError(apiErrorMessage(err)),
   });
 
-  const resolveDisputeMutation = useMutation({
-    mutationFn: () => invoicesApi.resolveDispute(invoiceId!),
-    onSuccess: onActionSuccess,
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
+  const onSave = (values: FormValues) => {
+    setActionError(null);
+    setSuccessMessage(null);
+    const payload: InvoiceUpdatePayload = {
+      vendorId: values.vendorId || null,
+      invoiceNumber: values.invoiceNumber.trim() || null,
+      invoiceDate: values.invoiceDate || null,
+      dueDate: values.dueDate || null,
+      currency: values.currency || "INR",
+      subtotalAmount: values.subtotalAmount ? Number(values.subtotalAmount) : null,
+      taxAmount: values.taxAmount ? Number(values.taxAmount) : null,
+      discountAmount: values.discountAmount ? Number(values.discountAmount) : null,
+      totalAmount: values.totalAmount ? Number(values.totalAmount) : null,
+      notes: values.notes || null,
+      lineItems: values.lineItems.map((li, idx) => ({
+        lineOrder: idx,
+        description: li.description,
+        quantity: Number(li.quantity),
+        unitPrice: Number(li.unitPrice),
+        taxAmount: Number(li.taxAmount || 0),
+        discountAmount: Number(li.discountAmount || 0),
+        totalAmount: Number(li.totalAmount),
+      })),
+    };
+    updateMutation.mutate(payload);
+  };
 
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({
-    amount: "", scheduledDate: new Date().toISOString().slice(0, 10), method: "BANK_TRANSFER" as PaymentMethod, reference: "", notes: "",
-  });
-  const schedulePaymentMutation = useMutation({
-    mutationFn: (payload: SchedulePaymentPayload) => invoicesApi.schedulePayment(invoiceId!, payload),
-    onSuccess: (invoice) => {
-      onActionSuccess(invoice);
-      setPaymentDialogOpen(false);
-      setPaymentForm({ amount: "", scheduledDate: new Date().toISOString().slice(0, 10), method: "BANK_TRANSFER", reference: "", notes: "" });
-    },
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
+  const handleDownloadDoc = async () => {
+    try {
+      const blob = await invoicesApi.downloadDocument(id!);
+      const filename = invoiceQuery.data?.documents?.[0]?.originalFilename || "invoice_document";
+      downloadBlob(blob, filename);
+    } catch (e) {
+      setActionError("Unable to download document.");
+    }
+  };
 
-  const completePaymentMutation = useMutation({
-    mutationFn: (paymentId: string) => invoicesApi.completePayment(invoiceId!, paymentId),
-    onSuccess: onActionSuccess,
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
+  const handleAskAi = async (customPrompt?: string) => {
+    const q = customPrompt || aiQuestion;
+    if (!q.trim()) return;
 
-  const cancelPaymentMutation = useMutation({
-    mutationFn: (paymentId: string) => invoicesApi.cancelPayment(invoiceId!, paymentId),
-    onSuccess: onActionSuccess,
-    onError: (error) => setActionError(apiErrorMessage(error)),
-  });
+    setAiConversation((prev) => [...prev, { role: "user", content: q }]);
+    setAiQuestion("");
+    setIsAskingAi(true);
+
+    try {
+      const res = await invoicesApi.askQuestion(id!, q);
+      setAiConversation((prev) => [...prev, { role: "assistant", content: res.answer }]);
+    } catch (e) {
+      setAiConversation((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry, I could not process your question for this invoice." },
+      ]);
+    } finally {
+      setIsAskingAi(false);
+    }
+  };
 
   if (invoiceQuery.isLoading) {
-    return <Skeleton variant="rectangular" height={400} />;
+    return (
+      <Stack spacing={3}>
+        <Skeleton variant="rectangular" height={80} sx={{ borderRadius: "12px" }} />
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Skeleton variant="rectangular" height={500} sx={{ borderRadius: "12px" }} />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Skeleton variant="rectangular" height={500} sx={{ borderRadius: "12px" }} />
+          </Grid>
+        </Grid>
+      </Stack>
+    );
   }
 
-  if (invoiceQuery.isError) {
-    return <Alert severity="error">{apiErrorMessage(invoiceQuery.error, "Invoice not found.")}</Alert>;
+  if (invoiceQuery.isError || !invoiceQuery.data) {
+    return (
+      <Alert severity="error">
+        Invoice not found. <Button onClick={() => navigate("/invoices")}>Back to Invoices</Button>
+      </Alert>
+    );
   }
 
-  const invoice = invoiceQuery.data!;
+  const invoice = invoiceQuery.data;
   const isArchived = invoice.status === "ARCHIVED";
-  const fieldsDisabled = !canManage || isArchived;
-  const vendors = vendorsQuery.data?.content ?? [];
-  const selectedVendorId = watch("vendorId");
-  const latestDocument = invoice.documents[0];
-  const extractedFieldCount = Object.keys(invoice.fieldConfidence ?? {}).length;
-  const isSubmitter = invoice.submittedBy.id === user?.id;
-  const canDecideThisInvoice = canDecideApprovals && !isSubmitter;
-  const isPayable = PAYABLE_STATUSES.has(invoice.status);
-  const isDisputable = DISPUTABLE_STATUSES.has(invoice.status);
-  const outstanding = invoice.outstandingAmount ?? invoice.totalAmount ?? 0;
+  const confidence = invoice.fieldConfidence;
+  const vendors: Vendor[] = Array.isArray(vendorsQuery.data)
+    ? vendorsQuery.data
+    : Array.isArray((vendorsQuery.data as any)?.content)
+    ? (vendorsQuery.data as any).content
+    : [];
 
   return (
     <Stack spacing={3}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-          <Button onClick={() => navigate("/invoices")}>&larr; Back</Button>
-          <Typography variant="h4" fontWeight={700}>
-            {invoice.invoiceNumber ?? "Untitled invoice"}
-          </Typography>
-          <Chip label={invoice.status.replaceAll("_", " ")} color={STATUS_COLOR[invoice.status] ?? "default"} />
-          <Chip
-            label={`Risk ${invoice.riskScore}/100`}
-            color={riskColor(invoice.riskScore)}
-            variant={invoice.riskScore === 0 ? "outlined" : "filled"}
-          />
-          {invoice.status === "PENDING_APPROVAL" && invoice.requiredApprovalRole && (
-            <Chip
-              size="small"
+      {/* Top Header */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ sm: "center" }}
+        spacing={2}
+      >
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <IconButton onClick={() => navigate("/invoices")} size="small">
+            <ArrowBackIcon />
+          </IconButton>
+          <Box>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Typography variant="h5" fontWeight={700}>
+                {invoice.invoiceNumber || "Draft Invoice"}
+              </Typography>
+              <Chip
+                label={invoice.status.replace("_", " ")}
+                color={STATUS_COLOR[invoice.status] ?? "default"}
+                size="small"
+                sx={{ fontWeight: 600 }}
+              />
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Submitted by {invoice.submittedBy?.fullName} on{" "}
+              {new Date(invoice.createdAt).toLocaleDateString()}
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Stack direction="row" spacing={1} flexWrap="wrap">
+          {invoice.documents?.length > 0 && (
+            <Button
               variant="outlined"
-              label={`Needs ${invoice.requiredApprovalRole.replaceAll("_", " ")} approval`}
-            />
+              size="small"
+              startIcon={<FileDownloadOutlinedIcon />}
+              onClick={handleDownloadDoc}
+            >
+              Download PDF
+            </Button>
+          )}
+
+          {!isArchived && invoice.status === "NEEDS_REVIEW" && (
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<VerifiedIcon />}
+              onClick={() => verifyMutation.mutate()}
+              disabled={verifyMutation.isPending}
+            >
+              Verify Invoice
+            </Button>
+          )}
+
+          {!isArchived && isAdmin && invoice.status !== "APPROVED" && (
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={<CheckIcon />}
+              onClick={() => approveMutation.mutate()}
+              disabled={approveMutation.isPending}
+            >
+              Approve
+            </Button>
+          )}
+
+          {!isArchived && isAdmin && invoice.status !== "REJECTED" && (
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<BlockIcon />}
+              onClick={() => setRejectDialogOpen(true)}
+            >
+              Reject
+            </Button>
+          )}
+
+          {!isArchived && (
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              startIcon={<ArchiveIcon />}
+              onClick={() => archiveMutation.mutate()}
+              disabled={archiveMutation.isPending}
+            >
+              Archive
+            </Button>
           )}
         </Stack>
-        {canManage && (
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {invoice.status === "NEEDS_REVIEW" && (
-              <Button variant="contained" onClick={() => verifyMutation.mutate()} disabled={verifyMutation.isPending}>
-                Verify
-              </Button>
-            )}
-            {invoice.status === "VERIFIED" && (
-              <Button
-                variant="contained"
-                onClick={() => submitForApprovalMutation.mutate()}
-                disabled={submitForApprovalMutation.isPending}
-              >
-                Submit for approval
-              </Button>
-            )}
-            {invoice.status === "PENDING_APPROVAL" && canDecideApprovals && (
-              <>
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={() => approveMutation.mutate()}
-                  disabled={approveMutation.isPending || !canDecideThisInvoice}
-                  title={!canDecideThisInvoice ? "You cannot approve an invoice you submitted yourself." : undefined}
-                >
-                  Approve
-                </Button>
-                <Button
-                  color="error"
-                  onClick={() => setRejectDialogOpen(true)}
-                  disabled={!canDecideThisInvoice}
-                  title={!canDecideThisInvoice ? "You cannot reject an invoice you submitted yourself." : undefined}
-                >
-                  Reject
-                </Button>
-              </>
-            )}
-            {isPayable && (
-              <Button variant="contained" onClick={() => setPaymentDialogOpen(true)}>
-                Schedule payment
-              </Button>
-            )}
-            {invoice.status === "DISPUTED" ? (
-              <Button onClick={() => resolveDisputeMutation.mutate()} disabled={resolveDisputeMutation.isPending}>
-                Resolve dispute
-              </Button>
-            ) : (
-              isDisputable && <Button color="warning" onClick={() => setDisputeDialogOpen(true)}>Dispute</Button>
-            )}
-            {!isArchived && (
-              <Button color="inherit" onClick={() => archiveMutation.mutate()} disabled={archiveMutation.isPending}>
-                Archive
-              </Button>
-            )}
-          </Stack>
-        )}
       </Stack>
 
-      {actionError && <Alert severity="error" onClose={() => setActionError(null)}>{actionError}</Alert>}
-
-      {invoice.status === "DISPUTED" && invoice.disputeReason && (
-        <Alert severity="error">
-          <strong>Disputed:</strong> {invoice.disputeReason}
+      {actionError && (
+        <Alert severity="error" onClose={() => setActionError(null)}>
+          {actionError}
+        </Alert>
+      )}
+      {successMessage && (
+        <Alert severity="success" onClose={() => setSuccessMessage(null)}>
+          {successMessage}
         </Alert>
       )}
 
-      {latestDocument?.processingStatus === "REJECTED" && (
-        <Alert severity="error">
-          <strong>Document rejected:</strong> {latestDocument.rejectionReason}. You can still enter the invoice
-          details manually below, or replace the document by uploading a new invoice.
-        </Alert>
-      )}
-      {latestDocument?.processingStatus === "NEEDS_REVIEW" && (
-        <Alert severity="info">
-          No text could be extracted from this document automatically (it may be a scanned image without OCR
-          available, or have no selectable text). Please enter the invoice details manually below.
-        </Alert>
-      )}
-      {latestDocument?.processingStatus === "PROCESSED" && extractedFieldCount > 0 && (
-        <Alert severity="success">
-          AI extracted {extractedFieldCount} field{extractedFieldCount === 1 ? "" : "s"} from this document.
-          Fields below a 75% confidence are flagged — please verify them before approving.
-        </Alert>
-      )}
-
+      {/* Main Content Layout */}
       <Grid container spacing={3}>
-        <Grid item xs={12} md={5}>
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Original document
-            </Typography>
-            <DocumentViewer invoiceId={invoice.id} />
-          </Paper>
-        </Grid>
+        {/* Left Column: Editable Form & Line Items */}
+        <Grid item xs={12} lg={8}>
+          <Stack spacing={3}>
+            {/* Invoice Form Card */}
+            <Card>
+              <CardContent sx={{ p: 3 }}>
+                <Box component="form" onSubmit={handleSubmit(onSave)}>
+                  <Stack spacing={2.5}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      Invoice Details
+                    </Typography>
 
-        <Grid item xs={12} md={7}>
-          <Paper variant="outlined" sx={{ p: 2 }} component="form" onSubmit={handleSubmit((v) => saveMutation.mutate(v))}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Autocomplete
-                  disabled={fieldsDisabled}
-                  options={vendors}
-                  getOptionLabel={(v) => v.name}
-                  value={vendors.find((v) => v.id === selectedVendorId) ?? null}
-                  onChange={(_, value) => setValue("vendorId", value?.id ?? null)}
-                  renderInput={(params) => <TextField {...params} label="Vendor" />}
-                />
-                {!selectedVendorId && invoice.vendorNameRaw && (
-                  <Typography variant="caption" color="warning.main">
-                    ⚠ AI detected vendor name "{invoice.vendorNameRaw}" but found no matching vendor record —
-                    create one on the Vendors page, then select it here.
-                  </Typography>
-                )}
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Invoice number"
-                  fullWidth
-                  disabled={fieldsDisabled}
-                  helperText={confidenceHelperText(invoice.fieldConfidence, "invoiceNumber")}
-                  FormHelperTextProps={{ sx: { color: (invoice.fieldConfidence?.invoiceNumber ?? 1) < CONFIDENCE_THRESHOLD ? "warning.main" : undefined } }}
-                  {...register("invoiceNumber")}
-                />
-              </Grid>
-              <Grid item xs={3}>
-                <TextField
-                  label="Invoice date"
-                  type="date"
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  disabled={fieldsDisabled}
-                  helperText={confidenceHelperText(invoice.fieldConfidence, "invoiceDate")}
-                  FormHelperTextProps={{ sx: { color: (invoice.fieldConfidence?.invoiceDate ?? 1) < CONFIDENCE_THRESHOLD ? "warning.main" : undefined } }}
-                  {...register("invoiceDate")}
-                />
-              </Grid>
-              <Grid item xs={3}>
-                <TextField
-                  label="Due date"
-                  type="date"
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  disabled={fieldsDisabled}
-                  helperText={confidenceHelperText(invoice.fieldConfidence, "dueDate")}
-                  FormHelperTextProps={{ sx: { color: (invoice.fieldConfidence?.dueDate ?? 1) < CONFIDENCE_THRESHOLD ? "warning.main" : undefined } }}
-                  {...register("dueDate")}
-                />
-              </Grid>
-
-              <Grid item xs={3}>
-                <TextField label="Currency" fullWidth disabled={fieldsDisabled} {...register("currency")} />
-              </Grid>
-              <Grid item xs={3}>
-                <TextField
-                  label="Subtotal"
-                  type="number"
-                  fullWidth
-                  disabled={fieldsDisabled}
-                  helperText={confidenceHelperText(invoice.fieldConfidence, "subtotalAmount")}
-                  FormHelperTextProps={{ sx: { color: (invoice.fieldConfidence?.subtotalAmount ?? 1) < CONFIDENCE_THRESHOLD ? "warning.main" : undefined } }}
-                  {...register("subtotalAmount")}
-                />
-              </Grid>
-              <Grid item xs={3}>
-                <TextField
-                  label="Tax"
-                  type="number"
-                  fullWidth
-                  disabled={fieldsDisabled}
-                  helperText={confidenceHelperText(invoice.fieldConfidence, "taxAmount")}
-                  FormHelperTextProps={{ sx: { color: (invoice.fieldConfidence?.taxAmount ?? 1) < CONFIDENCE_THRESHOLD ? "warning.main" : undefined } }}
-                  {...register("taxAmount")}
-                />
-              </Grid>
-              <Grid item xs={3}>
-                <TextField
-                  label="Total"
-                  type="number"
-                  fullWidth
-                  disabled={fieldsDisabled}
-                  helperText={confidenceHelperText(invoice.fieldConfidence, "totalAmount")}
-                  FormHelperTextProps={{ sx: { color: (invoice.fieldConfidence?.totalAmount ?? 1) < CONFIDENCE_THRESHOLD ? "warning.main" : undefined } }}
-                  {...register("totalAmount")}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <TextField label="Notes" fullWidth multiline minRows={2} disabled={fieldsDisabled} {...register("notes")} />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="subtitle2">Line items</Typography>
-                  {!fieldsDisabled && (
-                    <Button
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={() =>
-                        append({ description: "", quantity: "1", unitPrice: "0", taxAmount: "0", discountAmount: "0", totalAmount: "0" })
-                      }
-                    >
-                      Add line
-                    </Button>
-                  )}
-                </Stack>
-
-                <Stack spacing={1}>
-                  {fields.map((field, index) => (
-                    <Grid container spacing={1} key={field.id} alignItems="center">
-                      <Grid item xs={4}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          placeholder="Description"
-                          disabled={fieldsDisabled}
-                          {...register(`lineItems.${index}.description`)}
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Autocomplete
+                          options={vendors}
+                          getOptionLabel={(option) => option?.name || ""}
+                          isOptionEqualToValue={(option, val) => option?.id === val?.id}
+                          value={vendors.find((v) => v.id === watch("vendorId")) || null}
+                          disabled={isArchived}
+                          onChange={(_, val) => setValue("vendorId", val ? val.id : null)}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Vendor"
+                              placeholder="Select or search vendor..."
+                              helperText={
+                                confidenceHelperText(confidence, "vendor") ||
+                                (invoice.vendorNameRaw
+                                  ? `Extracted raw name: ${invoice.vendorNameRaw}`
+                                  : undefined)
+                              }
+                            />
+                          )}
                         />
                       </Grid>
-                      <Grid item xs={2}>
-                        <TextField size="small" type="number" fullWidth placeholder="Qty" disabled={fieldsDisabled} {...register(`lineItems.${index}.quantity`)} />
+
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Invoice Number"
+                          fullWidth
+                          disabled={isArchived}
+                          {...register("invoiceNumber")}
+                          helperText={confidenceHelperText(confidence, "invoiceNumber")}
+                        />
                       </Grid>
-                      <Grid item xs={2}>
-                        <TextField size="small" type="number" fullWidth placeholder="Unit price" disabled={fieldsDisabled} {...register(`lineItems.${index}.unitPrice`)} />
+
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Invoice Date"
+                          type="date"
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                          disabled={isArchived}
+                          {...register("invoiceDate")}
+                          helperText={confidenceHelperText(confidence, "invoiceDate")}
+                        />
                       </Grid>
-                      <Grid item xs={3}>
-                        <TextField size="small" type="number" fullWidth placeholder="Total" disabled={fieldsDisabled} {...register(`lineItems.${index}.totalAmount`)} />
+
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Due Date"
+                          type="date"
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                          disabled={isArchived}
+                          {...register("dueDate")}
+                          helperText={confidenceHelperText(confidence, "dueDate")}
+                        />
                       </Grid>
-                      <Grid item xs={1}>
-                        {!fieldsDisabled && (
-                          <IconButton size="small" onClick={() => remove(index)}>
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        )}
+
+                      <Grid item xs={12} sm={3}>
+                        <TextField
+                          label="Subtotal Amount"
+                          type="number"
+                          inputProps={{ step: "any", min: "0" }}
+                          fullWidth
+                          disabled={isArchived}
+                          {...register("subtotalAmount")}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12} sm={3}>
+                        <TextField
+                          label="Tax Amount"
+                          type="number"
+                          inputProps={{ step: "any", min: "0" }}
+                          fullWidth
+                          disabled={isArchived}
+                          {...register("taxAmount")}
+                          helperText={confidenceHelperText(confidence, "taxAmount")}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12} sm={3}>
+                        <TextField
+                          label="Discount Amount"
+                          type="number"
+                          inputProps={{ step: "any", min: "0" }}
+                          fullWidth
+                          disabled={isArchived}
+                          {...register("discountAmount")}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12} sm={3}>
+                        <TextField
+                          label="Total Amount"
+                          type="number"
+                          inputProps={{ step: "any", min: "0" }}
+                          fullWidth
+                          disabled={isArchived}
+                          {...register("totalAmount")}
+                          helperText={confidenceHelperText(confidence, "totalAmount")}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12}>
+                        <TextField
+                          label="Notes / Comments"
+                          multiline
+                          rows={2}
+                          fullWidth
+                          disabled={isArchived}
+                          {...register("notes")}
+                        />
                       </Grid>
                     </Grid>
+
+                    <Divider sx={{ my: 1 }} />
+
+                    {/* Line Items Table */}
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                    >
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        Line Items ({fields.length})
+                      </Typography>
+                      {!isArchived && (
+                        <Button
+                          size="small"
+                          startIcon={<AddIcon />}
+                          onClick={() =>
+                            append({
+                              description: "",
+                              quantity: 1,
+                              unitPrice: 0,
+                              taxAmount: 0,
+                              discountAmount: 0,
+                              totalAmount: 0,
+                            })
+                          }
+                        >
+                          Add Item
+                        </Button>
+                      )}
+                    </Stack>
+
+                    <Paper variant="outlined" sx={{ borderRadius: "10px", overflow: "hidden" }}>
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600, width: "40%" }}>Description</TableCell>
+                            <TableCell sx={{ fontWeight: 600, width: "15%" }}>Qty</TableCell>
+                            <TableCell sx={{ fontWeight: 600, width: "20%" }}>Unit Price</TableCell>
+                            <TableCell sx={{ fontWeight: 600, width: "20%" }}>Total</TableCell>
+                            {!isArchived && <TableCell sx={{ width: "5%" }} />}
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {fields.map((field, index) => (
+                            <TableRow key={field.id}>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  disabled={isArchived}
+                                  placeholder="Item description"
+                                  {...register(`lineItems.${index}.description` as const)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  inputProps={{ step: "any", min: "0" }}
+                                  fullWidth
+                                  disabled={isArchived}
+                                  {...register(`lineItems.${index}.quantity` as const)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  inputProps={{ step: "any", min: "0" }}
+                                  fullWidth
+                                  disabled={isArchived}
+                                  {...register(`lineItems.${index}.unitPrice` as const)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  inputProps={{ step: "any", min: "0" }}
+                                  fullWidth
+                                  disabled={isArchived}
+                                  {...register(`lineItems.${index}.totalAmount` as const)}
+                                />
+                              </TableCell>
+                              {!isArchived && (
+                                <TableCell>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => remove(index)}
+                                  >
+                                    <DeleteOutlineIcon fontSize="small" />
+                                  </IconButton>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                          {fields.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5} align="center" sx={{ py: 2, color: "text.secondary" }}>
+                                No line items extracted. Click &quot;Add Item&quot; to add manually.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </Paper>
+
+                    {!isArchived && (
+                      <Box sx={{ display: "flex", justifyContent: "flex-end", pt: 1 }}>
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          disabled={updateMutation.isPending}
+                        >
+                          {updateMutation.isPending ? "Saving..." : "Save Invoice Changes"}
+                        </Button>
+                      </Box>
+                    )}
+                  </Stack>
+                </Box>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+
+        {/* Right Column: Validation Checklist, Duplicates & AI Q&A */}
+        <Grid item xs={12} lg={4}>
+          <Stack spacing={3}>
+            {/* Validation Checklist Card */}
+            <Card>
+              <CardContent sx={{ p: 2.5 }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
+                  Validation Checklist
+                </Typography>
+                <Stack spacing={1.2}>
+                  {invoice.validationResults?.map((res, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        p: 1.2,
+                        borderRadius: "8px",
+                        bgcolor:
+                          res.status === "PASS"
+                            ? "#F0FDF4"
+                            : res.status === "WARNING"
+                            ? "#FFFBEB"
+                            : "#FEF2F2",
+                        border: "1px solid",
+                        borderColor:
+                          res.status === "PASS"
+                            ? "#BBF7D0"
+                            : res.status === "WARNING"
+                            ? "#FED7AA"
+                            : "#FECACA",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1,
+                      }}
+                    >
+                      {VALIDATION_ICON[res.status]}
+                      <Box>
+                        <Typography
+                          variant="caption"
+                          fontWeight={700}
+                          color={
+                            res.status === "PASS"
+                              ? "#15803D"
+                              : res.status === "WARNING"
+                              ? "#B45309"
+                              : "#B91C1C"
+                          }
+                        >
+                          {res.ruleCode}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>
+                          {res.message}
+                        </Typography>
+                      </Box>
+                    </Box>
                   ))}
-                  {fields.length === 0 && (
+                  {(!invoice.validationResults || invoice.validationResults.length === 0) && (
                     <Typography variant="body2" color="text.secondary">
-                      No line items yet.
+                      No validation rules evaluated yet.
                     </Typography>
                   )}
                 </Stack>
-              </Grid>
+              </CardContent>
+            </Card>
 
-              {!fieldsDisabled && (
-                <Grid item xs={12}>
-                  <Button type="submit" variant="contained" disabled={saveMutation.isPending}>
-                    {saveMutation.isPending ? "Saving..." : "Save changes"}
-                  </Button>
-                </Grid>
-              )}
-              {isArchived && (
-                <Grid item xs={12}>
-                  <Alert severity="info">This invoice is archived and cannot be edited.</Alert>
-                </Grid>
-              )}
-            </Grid>
-          </Paper>
+            {/* Duplicate Detection Card */}
+            {invoice.duplicateWarnings && invoice.duplicateWarnings.length > 0 && (
+              <Card sx={{ borderColor: "#FED7AA", bgcolor: "#FFFBEB" }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    <WarningAmberOutlinedIcon color="warning" />
+                    <Typography variant="subtitle1" fontWeight={700} color="#9A3412">
+                      Potential Duplicate Detected
+                    </Typography>
+                  </Stack>
+                  <Stack spacing={1}>
+                    {invoice.duplicateWarnings.map((dup, i) => (
+                      <Paper
+                        key={i}
+                        variant="outlined"
+                        sx={{ p: 1.5, borderRadius: "8px", bgcolor: "#FFFFFF" }}
+                      >
+                        <Typography variant="body2" fontWeight={600}>
+                          {dup.reason}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Match confidence: {Math.round(dup.probability * 100)}%
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Embedded AI Assistant Card */}
+            <Card sx={{ bgcolor: "#FFFFFF" }}>
+              <CardContent sx={{ p: 2.5 }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Box
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: "6px",
+                      background: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#FFF",
+                    }}
+                  >
+                    <AutoAwesomeIcon sx={{ fontSize: 16 }} />
+                  </Box>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    AI Invoice Q&A
+                  </Typography>
+                </Stack>
+
+                {/* Prebuilt Prompts */}
+                <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1.5, gap: 0.5 }}>
+                  <Chip
+                    size="small"
+                    label="Summarize invoice"
+                    onClick={() => handleAskAi("Summarize this invoice")}
+                    sx={{ cursor: "pointer", fontSize: "0.75rem" }}
+                  />
+                  <Chip
+                    size="small"
+                    label="List line items"
+                    onClick={() => handleAskAi("List all line items and their totals")}
+                    sx={{ cursor: "pointer", fontSize: "0.75rem" }}
+                  />
+                  <Chip
+                    size="small"
+                    label="Check tax calculation"
+                    onClick={() => handleAskAi("Is the tax calculation accurate?")}
+                    sx={{ cursor: "pointer", fontSize: "0.75rem" }}
+                  />
+                </Stack>
+
+                {/* Conversation Box */}
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 1.5,
+                    maxHeight: 240,
+                    minHeight: 120,
+                    overflowY: "auto",
+                    borderRadius: "10px",
+                    bgcolor: "#F8FAFC",
+                    mb: 1.5,
+                  }}
+                >
+                  {aiConversation.length === 0 ? (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ textAlign: "center", py: 4 }}
+                    >
+                      Ask questions about this invoice to extract insights.
+                    </Typography>
+                  ) : (
+                    <Stack spacing={1.5}>
+                      {aiConversation.map((msg, i) => (
+                        <Box
+                          key={i}
+                          sx={{
+                            p: 1,
+                            borderRadius: "8px",
+                            bgcolor: msg.role === "user" ? "#EFF6FF" : "#FFFFFF",
+                            border: msg.role === "assistant" ? "1px solid #E2E8F0" : "none",
+                            alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                            maxWidth: "90%",
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            fontWeight={700}
+                            color={msg.role === "user" ? "primary" : "text.secondary"}
+                          >
+                            {msg.role === "user" ? "You" : "AI Assistant"}
+                          </Typography>
+                          <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                            {msg.content}
+                          </Typography>
+                        </Box>
+                      ))}
+                      {isAskingAi && (
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+                          <CircularProgress size={16} />
+                          <Typography variant="caption" color="text.secondary">
+                            Thinking...
+                          </Typography>
+                        </Box>
+                      )}
+                    </Stack>
+                  )}
+                </Paper>
+
+                {/* Input form */}
+                <Stack direction="row" spacing={1}>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Ask about this invoice..."
+                    value={aiQuestion}
+                    onChange={(e) => setAiQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAskAi();
+                      }
+                    }}
+                  />
+                  <IconButton
+                    color="primary"
+                    onClick={() => handleAskAi()}
+                    disabled={!aiQuestion.trim() || isAskingAi}
+                  >
+                    <SendIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
         </Grid>
       </Grid>
 
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Risk &amp; validation
-        </Typography>
-
-        {invoice.riskReasons.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Why this invoice is risk-scored {invoice.riskScore}/100
-            </Typography>
-            <Stack component="ol" sx={{ pl: 3, m: 0 }} spacing={0.5}>
-              {invoice.riskReasons.map((reason, i) => (
-                <Typography key={i} component="li" variant="body2">
-                  {reason}
-                </Typography>
-              ))}
-            </Stack>
-          </Box>
-        )}
-
-        {invoice.duplicateWarnings.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Possible duplicates
-            </Typography>
-            <Stack spacing={1}>
-              {invoice.duplicateWarnings.map((warning) => (
-                <Alert
-                  key={warning.invoiceId}
-                  severity={warning.probability >= 0.9 ? "error" : "warning"}
-                  icon={<ContentCopyOutlinedIcon fontSize="inherit" />}
-                >
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                    <span>
-                      {warning.reason} ({Math.round(warning.probability * 100)}% match)
-                    </span>
-                    <Button
-                      size="small"
-                      component={RouterLink}
-                      to={`/invoices/${warning.invoiceId}`}
-                    >
-                      View invoice
-                    </Button>
-                  </Stack>
-                </Alert>
-              ))}
-            </Stack>
-          </Box>
-        )}
-
-        {invoice.anomaly && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Anomaly detected
-            </Typography>
-            <Alert severity={invoice.anomaly.severity === "HIGH" ? "error" : "warning"}>
-              <strong>{invoice.anomaly.severity} anomaly:</strong> {invoice.anomaly.explanation}
-            </Alert>
-          </Box>
-        )}
-
-        {invoice.recurringExpense && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Recurring expense
-            </Typography>
-            <Alert severity="info" icon={<EventRepeatOutlinedIcon fontSize="inherit" />}>
-              {invoice.recurringExpense.explanation}
-            </Alert>
-          </Box>
-        )}
-
-        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-          Validation checklist
-        </Typography>
-        <Stack spacing={0.75}>
-          {invoice.validationResults.map((result) => (
-            <Stack key={result.rule} direction="row" spacing={1} alignItems="flex-start">
-              {VALIDATION_ICON[result.status]}
-              <Typography variant="body2">{result.message}</Typography>
-            </Stack>
-          ))}
-        </Stack>
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
-          Validation is informational and should be verified by a qualified professional, especially GST/tax figures.
-        </Typography>
-
-        {invoice.approvalHistory.length > 0 && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Approval history
-            </Typography>
-            <Stack spacing={1}>
-              {invoice.approvalHistory.map((decision) => (
-                <Typography key={decision.id} variant="body2">
-                  <strong>{decision.decision}</strong> by {decision.decidedByName} ({decision.requiredRole.replaceAll("_", " ")}
-                  {decision.thresholdAmount != null ? `, threshold ${decision.thresholdAmount}` : ""})
-                  {decision.reason ? ` — "${decision.reason}"` : ""}
-                </Typography>
-              ))}
-            </Stack>
-          </>
-        )}
-      </Paper>
-
-      {(isPayable || invoice.payments.length > 0) && (
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-            <Typography variant="h6">Payments</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Paid {invoice.paidAmount ?? 0} of {invoice.totalAmount ?? 0} {invoice.currency}
-              {outstanding > 0 && ` — ${outstanding} ${invoice.currency} outstanding`}
-            </Typography>
-          </Stack>
-
-          {invoice.payments.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              No payments scheduled yet.
-            </Typography>
-          ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Amount</TableCell>
-                  <TableCell>Method</TableCell>
-                  <TableCell>Scheduled</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Reference</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {invoice.payments.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>{payment.amount} {payment.currency}</TableCell>
-                    <TableCell>{payment.method.replaceAll("_", " ")}</TableCell>
-                    <TableCell>{payment.scheduledDate}</TableCell>
-                    <TableCell>
-                      <Chip size="small" label={payment.status} color={PAYMENT_STATUS_COLOR[payment.status]} />
-                    </TableCell>
-                    <TableCell>{payment.reference ?? "—"}</TableCell>
-                    <TableCell align="right">
-                      {payment.status === "SCHEDULED" && canManage && (
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          <Button
-                            size="small"
-                            onClick={() => completePaymentMutation.mutate(payment.id)}
-                            disabled={completePaymentMutation.isPending}
-                          >
-                            Mark completed
-                          </Button>
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => cancelPaymentMutation.mutate(payment.id)}
-                            disabled={cancelPaymentMutation.isPending}
-                          >
-                            Cancel
-                          </Button>
-                        </Stack>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Paper>
-      )}
-
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-          Submitted by
-        </Typography>
-        <Typography variant="body2">{invoice.submittedBy.fullName} ({invoice.submittedBy.email})</Typography>
-      </Paper>
-
-      <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Reject invoice</DialogTitle>
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Reject Invoice</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
+            margin="dense"
+            label="Reason for rejection"
             fullWidth
             multiline
-            minRows={2}
-            label="Reason"
-            sx={{ mt: 1 }}
+            rows={3}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="e.g. Incorrect tax invoice format, duplicate billing..."
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
           <Button
-            variant="contained"
+            onClick={() => rejectMutation.mutate(rejectReason)}
             color="error"
+            variant="contained"
             disabled={!rejectReason.trim() || rejectMutation.isPending}
-            onClick={() => rejectMutation.mutate(rejectReason.trim())}
           >
-            Reject
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={disputeDialogOpen} onClose={() => setDisputeDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Dispute invoice</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            fullWidth
-            multiline
-            minRows={2}
-            label="Reason"
-            sx={{ mt: 1 }}
-            value={disputeReasonInput}
-            onChange={(e) => setDisputeReasonInput(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDisputeDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="warning"
-            disabled={!disputeReasonInput.trim() || disputeMutation.isPending}
-            onClick={() => disputeMutation.mutate(disputeReasonInput.trim())}
-          >
-            Dispute
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={paymentDialogOpen} onClose={() => setPaymentDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Schedule payment</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Amount"
-              type="number"
-              fullWidth
-              helperText={`Outstanding balance: ${outstanding} ${invoice.currency}`}
-              value={paymentForm.amount}
-              onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-            />
-            <TextField
-              label="Scheduled date"
-              type="date"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={paymentForm.scheduledDate}
-              onChange={(e) => setPaymentForm({ ...paymentForm, scheduledDate: e.target.value })}
-            />
-            <TextField
-              select
-              label="Method"
-              fullWidth
-              value={paymentForm.method}
-              onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value as PaymentMethod })}
-            >
-              {PAYMENT_METHODS.map((m) => (
-                <MenuItem key={m} value={m}>{m.replaceAll("_", " ")}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Reference"
-              fullWidth
-              value={paymentForm.reference}
-              onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })}
-            />
-            <TextField
-              label="Notes"
-              fullWidth
-              multiline
-              minRows={2}
-              value={paymentForm.notes}
-              onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={!paymentForm.amount || Number(paymentForm.amount) <= 0 || schedulePaymentMutation.isPending}
-            onClick={() =>
-              schedulePaymentMutation.mutate({
-                amount: Number(paymentForm.amount),
-                scheduledDate: paymentForm.scheduledDate,
-                method: paymentForm.method,
-                reference: paymentForm.reference || undefined,
-                notes: paymentForm.notes || undefined,
-              })
-            }
-          >
-            Schedule
+            {rejectMutation.isPending ? "Rejecting..." : "Reject Invoice"}
           </Button>
         </DialogActions>
       </Dialog>
